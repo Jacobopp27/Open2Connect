@@ -2,7 +2,7 @@ import requests
 import json
 
 # Configuración de credenciales y URL base
-API_KEY = "sk_TU_LLAVE_AQUI"
+API_KEY_aitinkerers = "sk_2b50c11ce03613d778f7785a087552de46e8223c095fad6cbdd6d994fc28ee95"
 BASE_URL = "https://aitinkerers.org/api/agents/v1"
 
 headers = {
