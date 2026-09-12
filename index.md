@@ -1,5 +1,7 @@
 # Open2Connect — índice, historial y arquitectura
 
+> **Actualización posterior: integración /agent + Supabase.** La petición actual reemplaza el alcance anterior: toda la app tiene una capa PostgreSQL preparada y `/agent` es la única pantalla de entrevista. El usuario decidió iniciar sin migrar datos. Se creó el esquema vacío `o2c_app` en Supabase y la instancia principal ya usa `DATABASE_PROVIDER=postgres`; los datos anteriores se conservan sin importar. Ver [estado, contratos y corte](docs/UNIFIED_DATABASE.md). Los apartados anteriores sobre SQLite obligatorio y kiosco pospuesto describen la base histórica.
+
 Fecha de corte: 2026-09-12. Base inspeccionada: `d584c14`. Este documento conserva el historial técnico disponible de la conversación y de Git; no es una transcripción literal ni contiene credenciales. Los hechos de sesiones anteriores se distinguen del código actual.
 
 ## Documentos de entrada
@@ -131,3 +133,15 @@ Registrar aquí cada cambio futuro con fecha, commit, petición, decisión, evid
 ## Actualización local: acceso a entrevistas
 
 Por petición del usuario, se añadió «Entrevista» al menú principal y un acceso desde registro/inicio de sesión. Ambos abren `/agent`; la cabecera del agente permite volver a `/`. Se conserva la entrevista web heredada oculta y no se cambian sus contratos ni el funcionamiento de voz del kiosco.
+
+## Integración posterior solicitada por el usuario
+
+Se preparó almacenamiento integral en `o2c_app`, migración transaccional con backup, acceso de entrevista limitado al propietario, consentimiento visible y matching compartido. Se retiró el cliente web heredado del bundle principal. La aplicación no se ha cambiado aún al nuevo proveedor: la revisión automática bloqueó la ejecución remota hasta aprobar expresamente la copia de cuentas/sesiones y datos. Ver `docs/UNIFIED_DATABASE.md`.
+
+## Corte a Supabase sin importar datos
+
+El usuario descartó migrar los registros anteriores. Se creó `o2c_app` vacío mediante `backend.setup_database`, se verificó el recorrido principal con datos sintéticos y rollback (cero registros de prueba restantes), y se reinició `/` y `/agent` en el puerto 8000 sobre PostgreSQL. SQLite y las tablas cloud anteriores quedan conservadas fuera del flujo activo. Las cuentas antiguas no se copiaron; es necesario registrarse de nuevo. La voz sigue pendiente de `OPENAI_API_KEY`.
+
+## Diseño unificado de /agent
+
+Se reutiliza `frontend/styles.css` para la tipografía, colores, menú y tarjetas de la app. `/agent` añade una tarjeta de voz, transcripción con estado vacío, instrucciones y recomendaciones. Se conserva el SVG animado y todos los IDs de los controles existentes. Verificación: controles presentes sin IDs duplicados, diff sin errores y revisión visual en navegador; no se cambiaron las API ni la base de datos.

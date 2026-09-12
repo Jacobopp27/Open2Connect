@@ -11,18 +11,19 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 
 const state = { personId: null, holding: false, agentBuffer: '' };
 
-function kioskKey() {
-  const meta = document.querySelector('meta[name="kiosk-key"]');
-  return meta && meta.content ? meta.content : '';
-}
-function apiHeaders() {
-  const headers = { 'X-Open2Connect': '1', 'Content-Type': 'application/json' };
-  const key = kioskKey();
-  if (key) headers['X-Kiosk-Key'] = key;
-  return headers;
-}
+const eventQuery = '?event=' + encodeURIComponent(new URLSearchParams(location.search).get('event') || 'medellin-2026');
+function apiHeaders() { return {'X-Open2Connect':'1','Content-Type':'application/json'}; }
 async function api(path, body) {
-  const r = await fetch('/api/kiosk/' + path, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body || {}) });
+  if (path === 'confirmar') {
+    const changes = Object.entries(body.cambios || {}).map(([k,v]) => k + ': ' + v).join('\n');
+    if (!confirm('¿Guardar estos cambios en tu perfil?\n' + changes)) return {cancelado:true};
+    body.confirmed = true;
+  }
+  if (path === 'checkin') {
+    if (!confirm('¿Registrar tu llegada con esta seña?\n' + (body.sena || 'Sin seña'))) return {cancelado:true};
+    body.confirmed = true;
+  }
+  const r = await fetch('/api/agent/'  + path + eventQuery, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body || {}) });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || 'No se pudo completar la solicitud.');
   return data;
@@ -140,6 +141,7 @@ function mostrarAvisoFoto() {
    para describirla, y apaga la cámara de inmediato. La imagen nunca se guarda en disco ni
    se logea; solo vive en memoria del navegador durante esta llamada. */
 async function tomarFotoSena() {
+  if (!confirm("¿Permites tomar una foto y enviarla a OpenAI para describir tu ropa? La aplicación no guardará la imagen.")) return {sena:"",cancelado:true};
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640 } });
@@ -160,7 +162,7 @@ async function tomarFotoSena() {
     canvas.getContext('2d').drawImage(video, 0, 0, w, h);
     const imagen = canvas.toDataURL('image/jpeg', 0.7);
     mostrarAvisoFoto();
-    return await api('apariencia', { imagen });
+    return await api('apariencia', { imagen, photo_consent:true });
   } catch (err) {
     return { sena: '', error: 'sin cámara' };
   } finally {
@@ -272,6 +274,7 @@ function onEvent(tipo, datos) {
   switch (tipo) {
     case 'estado':
       setEstado(datos);
+      if (datos === 'error' || (datos === 'inactivo' && !rt.pc)) $('#start-btn').disabled = false;
       if (datos === 'conectado') rt.decir('Saluda muy brevemente, en una sola frase, y pregunta el nombre de la persona.');
       break;
     case 'transcripcion_persona':
@@ -298,10 +301,11 @@ function onEvent(tipo, datos) {
   }
 }
 
-const rt = new O2CRealtime({ tokenUrl: '/api/kiosk/token', headers: apiHeaders(), tools, onEvent });
+const rt = new O2CRealtime({ tokenUrl: '/api/agent/token' + eventQuery, tokenBody:{ai_consent:true}, headers: apiHeaders(), tools, onEvent });
 
 function reset() {
   rt.cerrar();
+  $('#start-btn').disabled = false;
   state.personId = null;
   state.holding = false;
   state.agentBuffer = '';
@@ -313,13 +317,14 @@ function reset() {
   $('#matches-panel').hidden = true;
   $('#matches-cards').innerHTML = '';
   setEstado('inactivo', 'Mantén presionado el botón para hablar.');
-  rt.conectar().catch((err) => setEstado('error', 'No se pudo iniciar: ' + err.message));
+  setEstado('inactivo', 'Pulsa Iniciar entrevista para comenzar.');
 }
 
 function onPTTDown(e) {
   e.preventDefault();
   if (state.holding || !rt.estaConectado()) return;
   state.holding = true;
+  if (e.pointerId !== undefined) e.currentTarget.setPointerCapture(e.pointerId);
   $('#ptt').classList.add('active');
   rt.empezarAHablar();
 }
@@ -336,8 +341,16 @@ document.addEventListener('DOMContentLoaded', () => {
   btn.addEventListener('pointerdown', onPTTDown);
   btn.addEventListener('pointerup', onPTTUp);
   btn.addEventListener('pointercancel', onPTTUp);
-  btn.addEventListener('touchstart', onPTTDown, { passive: false });
-  btn.addEventListener('touchend', onPTTUp, { passive: false });
   $('#reset-btn').addEventListener('click', reset);
-  rt.conectar().catch((err) => setEstado('error', 'No se pudo iniciar: ' + err.message));
+  $('#start-btn').addEventListener('click', async () => {
+    const start = $('#start-btn'); start.disabled = true;
+    try {
+      const me = await fetch('/api/me');
+      if (!me.ok) throw new Error('Inicia sesión desde el enlace de abajo para continuar.');
+      await rt.conectar();
+    } catch (err) { setEstado('error', err.message); }
+    finally { start.disabled = !!rt.pc; }
+  });
+  window.addEventListener('pagehide', () => rt.cerrar());
+  setEstado('inactivo', 'Pulsa Iniciar entrevista para comenzar.');
 });

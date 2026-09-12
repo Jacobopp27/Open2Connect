@@ -28,11 +28,6 @@ from backend.modules import ambiguous
 EVENT = 'medellin-2026'
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-with connect() as _db:
-    _db.execute('''CREATE TABLE IF NOT EXISTS checkins (
-      user_id TEXT PRIMARY KEY REFERENCES users(id),
-      event_id TEXT NOT NULL, checked_in_at REAL NOT NULL, sena TEXT NOT NULL)''')
-
 INSTRUCCIONES = '''Eres "Mesa 4", la anfitriona de voz del registro de Open2Connect en Medellín. Hablas español colombiano, cálido y natural, como alguien de logística del evento — nunca como si leyeras un formulario.
 
 Reglas duras:
@@ -102,21 +97,6 @@ def _prompt_transcripcion():
     más algunos nombres/palabras comunes del evento, para que gpt-4o-mini-transcribe no
     confunda "Jacobo" con "Juan" o "Acu"."""
     nombres = []
-    try:
-        with connect() as db:
-            rows = db.execute('SELECT profile FROM users WHERE demo=0').fetchall()
-        for row in rows:
-            try:
-                data = json.loads(row['profile']) if row['profile'] else {}
-            except (ValueError, TypeError):
-                data = {}
-            nombre = str((data or {}).get('name', '') or '').strip()
-            if nombre:
-                nombres.append(nombre)
-            if len(nombres) >= 60:
-                break
-    except Exception:
-        nombres = []
     extra = ['Jacobo', 'Juan', 'Laura', 'Andrés', 'Camila', 'Santiago', 'Valentina']
     prompt = ('Registro de evento en Medellín. Nombres de asistentes: '
               + ', '.join(nombres + extra)
@@ -320,6 +300,8 @@ def confirmar_perfil(id, cambios, event=EVENT):
                 continue
             valor = valor.strip()[:1500]
             (general if destino[0] == 'general' else evento)[destino[1]] = valor
+            if clave in ('busca','problema'): evento['needs_status']='present'
+            if clave == 'ofrece': evento['offers_status']='present'
         db.execute('UPDATE users SET profile=? WHERE id=?', (json.dumps(general), id))
         db.execute('''INSERT INTO profiles(user_id,event_id,data,visible) VALUES (?,?,?,1)
           ON CONFLICT(user_id,event_id) DO UPDATE SET data=excluded.data''', (id, event, json.dumps(evento)))
@@ -337,12 +319,13 @@ def hacer_checkin(id, sena, event=EVENT):
             raise Problem('Persona no encontrada. / Person not found.', 404)
         checked_in_at = time.time()
         db.execute('''INSERT INTO checkins(user_id,event_id,checked_in_at,sena) VALUES (?,?,?,?)
-          ON CONFLICT(user_id) DO UPDATE SET event_id=excluded.event_id,checked_in_at=excluded.checked_in_at,sena=excluded.sena''',
+          ON CONFLICT(user_id,event_id) DO UPDATE SET event_id=excluded.event_id,checked_in_at=excluded.checked_in_at,sena=excluded.sena''',
                    (id, event, checked_in_at, sena))
         general, evento = _perfil_de(row)
     perfil = {**general, **evento, 'id': id, 'email': row['email'], 'sena': sena, 'checked_in_at': checked_in_at}
-    ambiguous.registrar_asistente(perfil, event)
-    ambiguous.avisar_staff(f"Llegó {general.get('name', 'alguien')} ({general.get('role', 'sin rol')}). Anda de {sena}.")
+    if os.getenv('ENABLE_EXTERNAL_SYNC') == '1':
+        ambiguous.registrar_asistente(perfil, event)
+        ambiguous.avisar_staff(f"Llegó {general.get('name', 'alguien')} ({general.get('role', 'sin rol')}). Anda de {sena}.")
     return {'checked_in': True, 'checked_in_at': checked_in_at, 'sena': sena}
 
 
@@ -444,8 +427,9 @@ def _base_url():
     return url if url.endswith('/') else url + '/'
 
 
-def pagina_personal_url(user_id):
-    return _base_url() + 'yo/' + str(user_id)
+def pagina_personal_url(user_id, event=EVENT):
+    from urllib.parse import urlencode
+    return _base_url() + 'yo/' + str(user_id) + '?' + urlencode({'event':event})
 
 
 def mostrar_qr_registro():

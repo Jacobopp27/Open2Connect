@@ -1,5 +1,7 @@
 # Open2Connect — flujo de skills
 
+> **Actualización posterior: integración /agent + Supabase.** La petición actual reemplaza el alcance anterior: toda la app tiene una capa PostgreSQL preparada y `/agent` es la única pantalla de entrevista. El usuario decidió iniciar sin migrar datos. Se creó el esquema vacío `o2c_app` en Supabase y la instancia principal ya usa `DATABASE_PROVIDER=postgres`; los datos anteriores se conservan sin importar. Ver [estado, contratos y corte](docs/UNIFIED_DATABASE.md). Los apartados anteriores sobre SQLite obligatorio y kiosco pospuesto describen la base histórica.
+
 Base: `d584c14`, 2026-09-12. Este archivo documenta cómo construir y mantener la aplicación. No instala skills ni se ejecuta dentro del producto. Contexto: [index.md](index.md); contratos: [sdd.md](sdd.md); entorno: [agents.md](agents.md).
 
 ## Skills y capacidades
