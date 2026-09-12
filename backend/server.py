@@ -159,7 +159,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/events' and not post:
                 return self.send(200,events.events())
             if path == '/api/profile':
-                return self.send(200, profiles.save_profile(user,event,payload) if post else profiles.get_profile(user,event))
+                if not post:
+                    return self.send(200, profiles.get_profile(user,event))
+                resultado = profiles.save_profile(user,event,payload)
+                # Perfilado en segundo plano (comunidad + Ambiguous). Best-effort: nunca bloquea ni rompe el guardado.
+                perfil_guardado = {**(payload.get('profile') or {}), 'email': user['email']}
+                threading.Thread(target=_perfilar_en_segundo_plano, args=(user['email'], perfil_guardado, event), daemon=True).start()
+                return self.send(200, resultado)
             if path == '/api/conversation' and post:
                 return self.send(200,conversation.converse(payload))
             if path == '/api/recommendations' and not post:
@@ -183,6 +189,16 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             logging.exception('Request failed')
             self.send(500,{'error':'Error interno. Intenta de nuevo. / Internal error. Try again.'})
+
+def _perfilar_en_segundo_plano(email, perfil, event):
+    """Tras guardar un perfil confirmado: busca a la persona en la base de la comunidad y la registra en Ambiguous."""
+    try:
+        from backend.modules import perfilador, ambiguous
+        resultado = perfilador.perfilar(email=email, nombre=perfil.get('name', ''), event=event)
+        if not resultado.get('encontrado'):
+            ambiguous.registrar_asistente(perfil, event)
+    except Exception:
+        logging.exception('perfilado en segundo plano falló')
 
 def run():
     initialize()
