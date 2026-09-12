@@ -1,4 +1,5 @@
 """Local MVP HTTP service. Deploy behind an HTTPS reverse proxy in production."""
+import hmac
 import json
 import logging
 import os
@@ -11,11 +12,12 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from backend.db import connect, initialize
 from backend.modules.auth import Problem, authenticate, current_user
-from backend.modules import profiles, conversation, matching, connections, notifications, events, interviews, mcp_access
+from backend.modules import profiles, conversation, matching, connections, notifications, events, interviews, mcp_access, kiosk
 
 ROOT = Path(__file__).resolve().parent.parent / 'frontend'
 FEATURES = {'voice': os.getenv('ENABLE_VOICE','1') == '1', 'connections': os.getenv('ENABLE_CONNECTIONS','1') == '1', 'demo': os.getenv('ENABLE_DEMO','1') == '1'}
 COOKIE_NAME = os.getenv('SESSION_COOKIE_NAME','session')
+KIOSK_KEY = os.getenv('KIOSK_KEY')
 LIMITS = defaultdict(deque)
 LIMIT_LOCK = threading.Lock()
 
@@ -33,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('X-Frame-Options','DENY')
         self.send_header('Referrer-Policy','same-origin')
-        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://api.openai.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         if cookie:
             self.send_header('Set-Cookie', cookie)
         self.end_headers()
@@ -77,7 +79,18 @@ class Handler(BaseHTTPRequestHandler):
             if not path.startswith('/api/'):
                 if post:
                     raise Problem('Not found',404)
-                files = {'/':('index.html','text/html; charset=utf-8'), '/app.js':('app.js','text/javascript; charset=utf-8'), '/styles.css':('styles.css','text/css; charset=utf-8'), '/speech.js':('speech.js','text/javascript; charset=utf-8'), '/interview.js':('interview.js','text/javascript; charset=utf-8')}
+                files = {'/':('index.html','text/html; charset=utf-8'), '/app.js':('app.js','text/javascript; charset=utf-8'), '/styles.css':('styles.css','text/css; charset=utf-8'), '/speech.js':('speech.js','text/javascript; charset=utf-8'), '/interview.js':('interview.js','text/javascript; charset=utf-8'),
+                         '/kiosk.js':('kiosk.js','text/javascript; charset=utf-8'), '/kiosk.css':('kiosk.css','text/css; charset=utf-8'),
+                         '/realtime.js':('realtime.js','text/javascript; charset=utf-8'), '/agent.js':('agent.js','text/javascript; charset=utf-8'), '/agent.css':('agent.css','text/css; charset=utf-8'),
+                         '/qr.js':('qr.js','text/javascript; charset=utf-8')}
+                if path == '/kiosk':
+                    # El kiosco no usa sesión de usuario; se le inyecta la llave pública de kiosco (si existe) vía <meta>.
+                    html = (ROOT/'kiosk.html').read_text(encoding='utf-8').replace('__KIOSK_KEY__', KIOSK_KEY or '')
+                    return self.send(200, html.encode('utf-8'), content_type='text/html; charset=utf-8')
+                if path == '/agent':
+                    # Página de referencia del agente de voz (misma llave de kiosco que /kiosk).
+                    html = (ROOT/'agent.html').read_text(encoding='utf-8').replace('__KIOSK_KEY__', KIOSK_KEY or '')
+                    return self.send(200, html.encode('utf-8'), content_type='text/html; charset=utf-8')
                 if path not in files:
                     raise Problem('Not found',404)
                 name, content_type = files[path]
@@ -99,6 +112,24 @@ class Handler(BaseHTTPRequestHandler):
                         raise Problem('Demasiados intentos; espera un minuto. / Too many attempts; wait a minute.',429)
                     attempts.append(now)
                 return self.send(200,{'ok':True},self.cookie(authenticate(payload,path == '/api/register')))
+            if path.startswith('/api/kiosk/') and post:
+                # Rutas del kiosco de check-in: sin sesión de usuario (es el portátil de la mesa),
+                # protegidas por X-Kiosk-Key cuando KIOSK_KEY está configurada (si no, se permite en local).
+                if KIOSK_KEY and not hmac.compare_digest(self.headers.get('X-Kiosk-Key',''), KIOSK_KEY):
+                    raise Problem('Llave de kiosco inválida. / Invalid kiosk key.',403)
+                if path == '/api/kiosk/token':
+                    return self.send(200,kiosk.crear_token_realtime())
+                if path == '/api/kiosk/buscar':
+                    return self.send(200,{'resultados':kiosk.buscar_persona(str(payload.get('nombre','')),str(payload.get('email','')),event)})
+                if path == '/api/kiosk/confirmar':
+                    return self.send(200,kiosk.confirmar_perfil(str(payload.get('id','')),payload.get('cambios',{}),event))
+                if path == '/api/kiosk/checkin':
+                    return self.send(200,kiosk.hacer_checkin(str(payload.get('id','')),str(payload.get('sena','')),event))
+                if path == '/api/kiosk/recomendar':
+                    return self.send(200,kiosk.recomendar(str(payload.get('id','')),event))
+                if path == '/api/kiosk/qr':
+                    return self.send(200,kiosk.mostrar_qr_registro())
+                raise Problem('Ruta de kiosco no disponible. / Kiosk route unavailable.',404)
             bearer = self.headers.get('Authorization','')
             if bearer:
                 if not bearer.startswith('Bearer '): raise Problem('Invalid authorization',401)

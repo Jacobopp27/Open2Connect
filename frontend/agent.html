@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0a1f1b">
+<!-- Página de referencia para el equipo de frontend: misma llave de kiosco que /kiosk (ver docs/KIOSK.md). -->
+<meta name="kiosk-key" content="__KIOSK_KEY__">
+<title>Carita robótica · Open2Connect</title>
+<link rel="stylesheet" href="/agent.css">
+</head>
+<body>
+<div id="app">
+  <header class="agent-header">
+    <span class="brand">Open2Connect</span>
+    <button id="reset-btn" type="button">Nueva persona</button>
+  </header>
+
+  <main class="stage">
+    <div class="face-wrap">
+      <svg id="face" viewBox="0 0 300 260" role="img" aria-label="Carita del agente de voz">
+        <defs>
+          <filter id="headShadow" x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".45"></feDropShadow>
+          </filter>
+          <filter id="cyanGlow" x="-120%" y="-120%" width="340%" height="340%">
+            <feGaussianBlur stdDeviation="4" result="blur"></feGaussianBlur>
+            <feMerge>
+              <feMergeNode in="blur"></feMergeNode>
+              <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+          </filter>
+        </defs>
+        <g id="head-group">
+          <circle class="headphone" cx="18" cy="132" r="17"></circle>
+          <circle class="headphone" cx="282" cy="132" r="17"></circle>
+          <rect class="head" x="20" y="24" width="260" height="215" rx="58" filter="url(#headShadow)"></rect>
+          <rect class="screen" x="46" y="50" width="208" height="164" rx="42"></rect>
+          <g id="eyes-group" filter="url(#cyanGlow)">
+            <rect id="eye-l" class="eye" x="107" y="98" width="26" height="60" rx="13"></rect>
+            <rect id="eye-r" class="eye" x="167" y="98" width="26" height="60" rx="13"></rect>
+          </g>
+          <g id="mouth-group" transform="translate(150,188)" filter="url(#cyanGlow)">
+            <path id="mouth-smile" class="mouth-smile" d="M -32 -2 Q 0 20 32 -2"></path>
+            <rect id="mouth-shape" class="mouth-shape" x="-28" y="-2" width="56" height="4" rx="4"></rect>
+          </g>
+        </g>
+      </svg>
+    </div>
+
+    <div id="status" class="status-panel" role="status" aria-live="polite">
+      <span id="status-text">Conectando…</span>
+    </div>
+
+    <div class="ptt-wrap">
+      <button id="ptt" type="button" aria-label="Mantén presionado para hablar">
+        <span class="ptt-ring"></span>
+        <span class="ptt-label">Mantén presionado<br>para hablar</span>
+      </button>
+    </div>
+
+    <section id="qr-panel" class="qr-panel" hidden>
+      <h2>Regístrate aquí y vuelve a la mesa</h2>
+      <div id="qr-target"></div>
+    </section>
+
+    <section id="matches-panel" class="matches-panel" hidden>
+      <div id="matches-cards" class="matches-cards"></div>
+    </section>
+
+    <div id="transcript" aria-live="polite"></div>
+    <div id="tool-log" class="tool-log" aria-live="polite"></div>
+  </main>
+</div>
+<script src="/qr.js" defer></script>
+<script src="/realtime.js" defer></script>
+<script src="/agent.js" defer></script>
+</body>
+</html>
