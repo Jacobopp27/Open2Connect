@@ -107,3 +107,103 @@ Official references used for implementation: [OpenAI Structured Outputs](https:/
 ## Browser verification recorded for this increment
 
 In an isolated local SQLite instance and synthetic account, Chrome verified: registration, first/second interview questions, factual notes, pause, manual correction, explicit no-needs/no-offers, review, confirmation and persisted corrected profile after reload. English interface and disabled OpenAI state were also inspected. Physical microphone input and mobile hardware were not tested. The browser state was not used as evidence of a live OpenAI or Supabase connection.
+
+## Intelligent continuous voice (Realtime increment)
+
+Select **Voz inteligente · conversación continua**. This uses OpenAI Realtime over
+WebRTC, a generated `marin` voice and semantic VAD (`eagerness=low`). The participant
+can interrupt speech. The browser sends an SDP offer to the authenticated,
+CSRF-protected `POST /api/interviews/voice`; the Python server exchanges it using
+`/v1/realtime/calls`. Neither a standard nor an ephemeral API key is returned to
+the browser. Audio travels directly between the browser and OpenAI.
+
+The session uses `gpt-realtime-2.1` by default (override `OPENAI_REALTIME_MODEL`).
+Input transcription uses `gpt-4o-mini-transcribe`. Each completed transcript is
+processed by the existing Responses structured extractor (`OPENAI_MODEL`, suggested
+`gpt-4.1-mini`). Then Realtime speaks an acknowledgment and the next adaptive
+question. Automatic Realtime responses are disabled to keep questions in sync
+with validated notes. This adds extraction latency compared with a pure
+speech-to-speech loop; this is a custom interview, not ChatGPT's voice product.
+
+Committed item order determines extraction order, even if transcription completes
+out of order. Per-turn IDs make HTTP retries idempotent. Failed extraction retains
+the pending text in browser memory and pauses capture for retry. A separate,
+explicit discard control lets the participant abandon a pending reply and repeat
+it or type. Notes remain drafts; the voice model has no save or connection tools.
+Manual note editing requires stopping voice. Stop/pause/review drains received
+turns before closing media. Leaving the page immediately closes the microphone;
+a very recent, untranscribed utterance may need to be repeated. Permission failures,
+provider errors and blocked audio playback have visible recovery controls.
+
+### Local activation
+
+In ignored `.env`, configure `OPENAI_API_KEY` privately. Use `OPENAI_MODEL=gpt-4.1-mini`
+and `OPENAI_REALTIME_MODEL=gpt-realtime-2.1`, or models supported by your API project.
+Run `.venv/bin/python -m backend.local`; this explicit launcher reads literal
+`NAME=value` entries without shell execution or variable interpolation. Existing
+exported environment variables take precedence. Restart after editing `.env`.
+API credentials/access/billing are separate from the application's login.
+
+Voice consent covers sending audio, responses and interview facts to OpenAI.
+Raw audio is not recorded by the app; provider data policies still apply. The UI
+closes a voice connection after 15 minutes; this is a client lifecycle guard,
+not a server-enforced spending quota. Session exchange is limited to 3 attempts
+per minute per draft. Review provider/project usage controls before public rollout.
+Supabase configuration and SQLite storage are unchanged by voice activation.
+
+Verification: Python HTTP tests cover consent, scoping, CSRF, rate limiting,
+transcript idempotence, evidence validation, provider error redaction, and SDP
+configuration through an injected transport. Node tests cover transcript ordering,
+retry, delayed microphone permission cleanup and final-turn draining. These are
+not live OpenAI, actual microphone or network-quality tests. At implementation time
+`OPENAI_API_KEY` was absent, so live voice remains pending activation and device QA.
+
+References: [Realtime](https://developers.openai.com/api/docs/guides/realtime),
+[WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc?api=realtime),
+[semantic VAD](https://developers.openai.com/api/docs/guides/realtime-vad).
+
+### PostgreSQL connection diagnostic
+
+Run `.venv/bin/python -m backend.check_database` to load the ignored `.env` and
+verify `SUPABASE_DB_URL` using the public CA in `supabase/certs`. It checks TLS,
+read-only transaction state and existence of the two expected profile tables;
+it does not read participant rows, create tables or migrate data. Error messages
+omit the URL and credentials. PostgreSQL diagnostics require Psycopg 3.
+
+On 2026-09-12 the supplied pooler reached password authentication with full TLS
+verification after installing the official Supabase CA. Authentication failed;
+clarification of the backslash in the supplied password was requested. No remote
+schema or data was changed. `PROFILE_STORE` remains `sqlite`. The current
+`supabase` application adapter uses its server API key; a PostgreSQL URL by itself
+does not activate that adapter.
+
+
+### Supabase PostgreSQL configured — 2026-09-12
+
+The corrected credentials were verified with `sslmode=verify-full` and the official
+CA. Migration `202609120001_profiles.sql` was applied to project
+`yjloegnuyjziagppvdif`, creating the two profile tables and atomic save function.
+Live tests verified reading/writing, owner/event predicates, atomic failure rollback,
+RLS enabled and denied anon/authenticated grants. Synthetic records were rolled back.
+The diagnostic now confirms both tables and `transaction_read_only=on`; transaction
+mode is set explicitly because startup `options` were not sufficient through the pooler.
+
+`PROFILE_STORE=postgres` selects `backend/adapters/postgres_profiles.py`, using
+`SUPABASE_DB_URL` and `SUPABASE_DB_CA`. No Supabase HTTP API key is required for this
+provider. The URL is stored only in ignored `.env` (0600). The database account is
+privileged: application authorization scopes access; RLS is not owner enforcement
+for this account. No credential is sent to the browser.
+
+Only profiles move to this storage provider. Accounts, sessions, events and connections
+continue in the existing local SQLite database. No existing local profiles have been
+copied; switching providers shows the selected provider's profiles. Keep the original
+identity database, and do not use unrelated identity databases with this cloud store.
+
+Private configuration is prepared for the next `.venv/bin/python -m backend.local`
+start. Existing running servers still use their previous configuration. Restarting
+the main instance was previously blocked by automatic review because of unsaved
+in-memory interview drafts and awaits explicit user authorization.
+
+Validation: 38 Python tests passed, plus the live rollback checks above. The prior
+missing-certificate/password notes describe earlier diagnostic attempts, not the
+current connection status.
