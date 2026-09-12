@@ -70,9 +70,15 @@ def store():
     name=os.getenv('PROFILE_STORE','sqlite')
     if name=='sqlite': return SQLiteProfiles()
     if name=='supabase': return SupabaseProfiles()
+    if name=='postgres':
+        from backend.adapters.postgres_profiles import PostgresProfiles
+        return PostgresProfiles()
     raise Problem('PROFILE_STORE inválido. / Invalid PROFILE_STORE.',503)
 
 def status():
     name=os.getenv('PROFILE_STORE','sqlite')
     configured=name=='sqlite' or bool(os.getenv('SUPABASE_URL') and (os.getenv('SUPABASE_SECRET_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')))
-    return {'provider':name,'configured':configured,'verified_live':False if name=='supabase' else True}
+    if name=='postgres':
+        from backend.adapters.postgres_profiles import configuration
+        configured=configuration()[2]
+    return {'provider':name,'configured':configured,'verified_live':name=='sqlite'}

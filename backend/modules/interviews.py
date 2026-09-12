@@ -4,6 +4,7 @@ Sessions live in process memory for 2 hours. Only explicitly confirmed structure
 profile fields reach the selected repository; temporary evidence is discarded.
 """
 import copy
+import hashlib
 import secrets
 import threading
 import time
@@ -68,9 +69,9 @@ def owned(user, iid):
 
 def start(user,event,payload):
     locale=payload.get('locale','es'); mode=payload.get('mode','guided')
-    if locale not in ('es','en') or mode not in ('guided','openai'):
+    if locale not in ('es','en') or mode not in ('guided','openai','realtime'):
         raise Problem('Idioma o modo inválido. / Invalid locale or mode.')
-    if mode=='openai':
+    if mode in ('openai','realtime'):
         if payload.get('ai_consent') is not True:
             raise Problem('Autoriza enviar tus respuestas de entrevista al proveedor IA. / Consent to sending interview answers to the AI provider.',400)
         OpenAIInterview()  # Validate configuration before opening a session.
@@ -136,12 +137,20 @@ def turn(user,payload):
     if not isinstance(text,str) or not text.strip() or len(text)>5000:
         raise Problem('Escribe o dicta una respuesta de hasta 5000 caracteres. / Enter an answer up to 5000 characters.')
     with LOCK:
-        s=owned(user,payload.get('id'));validate_revision(s,payload)
+        s=owned(user,payload.get('id'))
+        turn_id=payload.get('turn_id')
+        if turn_id is not None:
+            if not isinstance(turn_id,str) or not 1<=len(turn_id)<=200: raise Problem('Invalid turn ID')
+            previous=s.get('processed_turns',{}).get(turn_id)
+            if previous is not None:
+                if previous!=hashlib.sha256(text.encode()).hexdigest(): raise Problem('Turn ID already used',409)
+                return public(s)
+        validate_revision(s,payload)
         if s['status']!='active': raise Problem('Reanuda la entrevista antes de responder. / Resume before answering.',409)
         if s['revision']>=100:raise Problem('Límite de entrevista alcanzado. Revisa el resumen. / Interview limit reached. Review your summary.',409)
         s['busy']=True;snapshot=copy.deepcopy(s)
     try:
-        result=OpenAIInterview().turn(snapshot['draft'],text,snapshot['question'],snapshot['focus'],snapshot['locale'],missing(snapshot)) if snapshot['mode']=='openai' else guided(snapshot,text)
+        result=OpenAIInterview().turn(snapshot['draft'],text,snapshot['question'],snapshot['focus'],snapshot['locale'],missing(snapshot)) if snapshot['mode'] in ('openai','realtime') else guided(snapshot,text)
         updates=validate_notes(result,text)
         with LOCK:
             s=owned(user,payload['id'])
@@ -151,9 +160,10 @@ def turn(user,payload):
                 if s['draft'].get(flag)=='none':
                     for k in fields:s['draft'][k]='';s['notes'].pop(k,None)
             s['revision']+=1;s['review_token']=None;ask(s)
+            if turn_id is not None:s.setdefault('processed_turns',{})[turn_id]=hashlib.sha256(text.encode()).hexdigest()
             # Permit model clarification only for an unresolved field or review.
             question=result.get('question','');focus=result.get('ask_field')
-            if snapshot['mode']=='openai' and isinstance(question,str) and 0<len(question)<=500 and question.count('?')<=1 and (focus in missing(s) or (not missing(s) and focus=='review')):
+            if snapshot['mode'] in ('openai','realtime') and isinstance(question,str) and 0<len(question)<=500 and question.count('?')<=1 and (focus in missing(s) or (not missing(s) and focus=='review')):
                 s['question']=question;s['focus']=focus
             if not updates and snapshot['mode']=='guided':
                 s['focus']=snapshot['focus']
@@ -212,3 +222,21 @@ def confirm(user,payload):
         profiles.save_profile(user,s['event'],{'profile':s['draft'],'confirmed':True})
         s['status']='confirmed';s['revision']+=1;s['notes']={};s['review_token']=None
         return public(s)
+
+
+def connect_voice(user,payload):
+    from backend.adapters import realtime_voice
+    with LOCK:
+        s=owned(user,payload.get('id'));validate_revision(s,payload)
+        if s['mode']!='realtime' or s['status']!='active':
+            raise Problem('Inicia o reanuda la entrevista de voz IA. / Start or resume the AI voice interview.',409)
+        now=time.time()
+        attempts=[t for t in s.get('voice_attempts',[]) if t>now-60]
+        if len(attempts)>=3:raise Problem('Espera un minuto antes de reconectar. / Wait a minute before reconnecting.',429)
+        s['voice_attempts']=attempts+[now]
+        s['busy']=True;snapshot=copy.deepcopy(s)
+    try:
+        return realtime_voice.connect(snapshot,payload.get('sdp'))
+    finally:
+        with LOCK:
+            if payload.get('id') in SESSIONS:SESSIONS[payload['id']]['busy']=False
