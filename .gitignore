@@ -1,0 +1,21 @@
+# Private runtime data and credentials
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.sqlite-*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Runtime/build artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+coverage/
+.DS_Store
+*.log
