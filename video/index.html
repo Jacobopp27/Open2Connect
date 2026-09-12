@@ -66,22 +66,26 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="46" data-width="1920" data-height="1080">
+    <div id="root" data-composition-id="main" data-start="0" data-duration="49" data-width="1920" data-height="1080">
 
-      <!-- ESCENA 1 · 0–5 s -->
-      <div id="s1" class="scene clip" data-start="0" data-duration="5.5" data-track-index="1">
+      <!-- ESCENA 1 · 0–8.5 s -->
+      <div id="s1" class="scene clip" data-start="0" data-duration="8.5" data-track-index="1">
         <div class="bg"></div>
         <div id="dots"></div>
-        <div id="s1-copy" style="position:absolute; left:140px; top:330px; width:1100px;">
+        <div id="s1-why" style="position:absolute; left:140px; top:300px; width:1000px;">
           <div class="eyebrow">Medellín · Agents Everywhere · 2026</div>
-          <h1 style="margin-top:20px;">Open2<span class="lime">Connect</span></h1>
-          <div class="sub" style="margin-top:26px; font-size:40px;">Arrive. Talk. Connect.</div>
+          <h2 style="margin-top:22px; font-size:88px;">You go to an event.<br>You don't know <span class="lime">who you should meet.</span></h2>
         </div>
-        <div class="caption"><span>A hundred people in the room. Who should you actually talk to? Nobody knows.</span></div>
+        <div id="s1-copy" style="position:absolute; left:140px; top:300px; width:1100px; opacity:0;">
+          <h1>Open2<span class="lime">Connect</span></h1>
+          <div class="sub" style="margin-top:26px; font-size:44px;">connects you with the people you came to meet.</div>
+        </div>
+        <div id="cap1a" class="caption"><span>You go to an event and you often don't know who you should meet.</span></div>
+        <div id="cap1b" class="caption" style="opacity:0;"><span>Open2Connect connects you with those people.</span></div>
       </div>
 
       <!-- ESCENA 2 · 5–12 s -->
-      <div id="s2" class="scene clip" data-start="5.5" data-duration="6.5" data-track-index="1">
+      <div id="s2" class="scene clip" data-start="8.5" data-duration="6.5" data-track-index="1">
         <div class="bg"></div>
         <div id="s2-copy" style="position:absolute; left:120px; top:250px; width:640px;">
           <div class="eyebrow">1 · Sign-up</div>
@@ -94,7 +98,7 @@
       </div>
 
       <!-- ESCENA 3 · 12–22 s -->
-      <div id="s3" class="scene clip" data-start="12" data-duration="10" data-track-index="1">
+      <div id="s3" class="scene clip" data-start="15" data-duration="10" data-track-index="1">
         <div class="bg"></div>
         <div id="s3-copy" style="position:absolute; left:140px; top:90px; width:900px;">
           <div class="eyebrow">2 · Voice check-in</div>
@@ -119,7 +123,7 @@
       </div>
 
       <!-- ESCENA 4 · 22–31 s -->
-      <div id="s4" class="scene clip" data-start="22" data-duration="10.5" data-track-index="1">
+      <div id="s4" class="scene clip" data-start="25" data-duration="10.5" data-track-index="1">
         <div class="bg"></div>
         <div id="s4-copy" style="position:absolute; left:140px; top:200px; width:900px;">
           <div class="eyebrow">3 · Live matching</div>
@@ -142,7 +146,7 @@
       </div>
 
       <!-- ESCENA 5 · 31–40 s -->
-      <div id="s5" class="scene clip" data-start="32.5" data-duration="9" data-track-index="1">
+      <div id="s5" class="scene clip" data-start="35.5" data-duration="9" data-track-index="1">
         <div class="bg"></div>
         <div id="s5-copy" style="position:absolute; left:140px; top:200px; width:720px;">
           <div class="eyebrow">4 · Staff sees everything</div>
@@ -164,7 +168,7 @@
       </div>
 
       <!-- ESCENA 6 · 40–45 s -->
-      <div id="s6" class="scene clip" data-start="41.5" data-duration="4.5" data-track-index="1">
+      <div id="s6" class="scene clip" data-start="44.5" data-duration="4.5" data-track-index="1">
         <div class="bg"></div>
         <div id="s6-copy" style="position:absolute; left:0; right:0; top:300px; text-align:center;">
           <h1>Open2<span class="lime">Connect</span></h1>
@@ -173,12 +177,12 @@
           <div class="stack" style="margin-top:40px;">OpenAI Realtime · Ambiguous AI · Supabase · Exa</div>
         </div>
       </div>
-      <audio id="vo1" src="assets/vo1.mp3" data-start="0.2" data-duration="5.1" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo2" src="assets/vo2.mp3" data-start="5.8" data-duration="5.3" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo3" src="assets/vo3.mp3" data-start="12.3" data-duration="8.9" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo4" src="assets/vo4.mp3" data-start="22.3" data-duration="9.9" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo5" src="assets/vo5.mp3" data-start="32.8" data-duration="8.1" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo6" src="assets/vo6.mp3" data-start="41.8" data-duration="3.7" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo1" src="assets/vo1.mp3" data-start="0.3" data-duration="7.8" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo2" src="assets/vo2.mp3" data-start="8.8" data-duration="5.3" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo3" src="assets/vo3.mp3" data-start="15.3" data-duration="8.9" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo4" src="assets/vo4.mp3" data-start="25.3" data-duration="9.9" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo5" src="assets/vo5.mp3" data-start="35.8" data-duration="8.1" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo6" src="assets/vo6.mp3" data-start="44.8" data-duration="3.7" data-track-index="10" data-volume="1"></audio>
     </div>
 
     <script>
@@ -208,41 +212,46 @@
       const tl = gsap.timeline({ paused: true });
       // S1
       tl.fromTo('#dots .dot', { opacity: 0, scale: 0.2 }, { opacity: 1, scale: 1, duration: 0.8, stagger: 0.02, ease: 'power2.out' }, 0);
+      tl.fromTo('#s1-why', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 0.3);
+      tl.fromTo('#cap1a', { opacity: 1 }, { opacity: 1, duration: 0.1 }, 0);
+      tl.to('#s1-why', { opacity: 0, y: -30, duration: 0.5, ease: 'power2.in' }, 4.2);
+      tl.to('#cap1a', { opacity: 0, duration: 0.3 }, 4.2);
       document.querySelectorAll('#dots .link').forEach((l, i) => {
-        tl.fromTo(l, { scaleX: 0, rotation: +l.dataset.rot }, { scaleX: 1, rotation: +l.dataset.rot, duration: 0.6, ease: 'power2.out' }, 2.4 + i * 0.4);
+        tl.fromTo(l, { scaleX: 0, rotation: +l.dataset.rot }, { scaleX: 1, rotation: +l.dataset.rot, duration: 0.6, ease: 'power2.out' }, 4.6 + i * 0.4);
       });
-      tl.fromTo('#s1-copy', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 0.6);
+      tl.fromTo('#s1-copy', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out', immediateRender: false }, 4.8);
+      tl.fromTo('#cap1b', { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 4.8);
       // S2
-      tl.fromTo('#s2-copy', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }, 5.6);
-      tl.fromTo('#s2-frame', { opacity: 0, x: 200, rotation: 2 }, { opacity: 1, x: 0, rotation: 0, duration: 1.0, ease: 'power3.out' }, 5.8);
-      tl.fromTo('#s2-frame', { scale: 1 }, { scale: 1.06, duration: 6, ease: 'none', immediateRender: false }, 6.8);
+      tl.fromTo('#s2-copy', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }, 8.6);
+      tl.fromTo('#s2-frame', { opacity: 0, x: 200, rotation: 2 }, { opacity: 1, x: 0, rotation: 0, duration: 1.0, ease: 'power3.out' }, 8.8);
+      tl.fromTo('#s2-frame', { scale: 1 }, { scale: 1.06, duration: 6, ease: 'none', immediateRender: false }, 9.8);
       // S3
-      tl.fromTo('#s3-copy', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.7 }, 12.1);
-      tl.fromTo('.robot', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 12.2);
-      tl.fromTo('#b1', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5 }, 13.2);
-      tl.fromTo('#b2', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5 }, 15.2);
-      tl.fromTo('#b3', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5 }, 16.8);
-      tl.fromTo('#s3-tags', { opacity: 0 }, { opacity: 1, duration: 0.6 }, 19.5);
+      tl.fromTo('#s3-copy', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.7 }, 15.1);
+      tl.fromTo('.robot', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 15.2);
+      tl.fromTo('#b1', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5 }, 16.2);
+      tl.fromTo('#b2', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5 }, 18.2);
+      tl.fromTo('#b3', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5 }, 19.8);
+      tl.fromTo('#s3-tags', { opacity: 0 }, { opacity: 1, duration: 0.6 }, 22.5);
       // mouth talking bursts (finite repeats)
-      tl.fromTo('#mouth', { scaleY: 1 }, { scaleY: 5, duration: 0.14, yoyo: true, repeat: 13, ease: 'sine.inOut' }, 13.2);
-      tl.fromTo('#mouth', { scaleY: 1 }, { scaleY: 6, duration: 0.13, yoyo: true, repeat: 27, ease: 'sine.inOut', immediateRender: false }, 16.8);
-      tl.fromTo('.eye', { scaleY: 1 }, { scaleY: 0.1, duration: 0.08, yoyo: true, repeat: 1 }, 15.0);
+      tl.fromTo('#mouth', { scaleY: 1 }, { scaleY: 5, duration: 0.14, yoyo: true, repeat: 13, ease: 'sine.inOut' }, 16.2);
+      tl.fromTo('#mouth', { scaleY: 1 }, { scaleY: 6, duration: 0.13, yoyo: true, repeat: 27, ease: 'sine.inOut', immediateRender: false }, 19.8);
+      tl.fromTo('.eye', { scaleY: 1 }, { scaleY: 0.1, duration: 0.08, yoyo: true, repeat: 1 }, 18);
       // S4
-      tl.fromTo('#s4-copy', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }, 22.1);
-      tl.fromTo('.phone', { opacity: 0, y: 120 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 22.2);
-      tl.fromTo('#alert', { opacity: 0, y: -40, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'back.out(2)' }, 23.6);
-      tl.fromTo('.phone', { x: 0 }, { x: 6, duration: 0.05, yoyo: true, repeat: 11, immediateRender: false }, 23.6);
-      tl.fromTo('#matchcard', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6 }, 24.6);
-      tl.fromTo('#btn', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 26.0);
-      tl.fromTo('#btn', { backgroundColor: '#f4f5f2' }, { backgroundColor: '#cdea6a', duration: 0.4, immediateRender: false }, 29.0);
+      tl.fromTo('#s4-copy', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }, 25.1);
+      tl.fromTo('.phone', { opacity: 0, y: 120 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 25.2);
+      tl.fromTo('#alert', { opacity: 0, y: -40, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'back.out(2)' }, 26.6);
+      tl.fromTo('.phone', { x: 0 }, { x: 6, duration: 0.05, yoyo: true, repeat: 11, immediateRender: false }, 26.6);
+      tl.fromTo('#matchcard', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6 }, 27.6);
+      tl.fromTo('#btn', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 29);
+      tl.fromTo('#btn', { backgroundColor: '#f4f5f2' }, { backgroundColor: '#cdea6a', duration: 0.4, immediateRender: false }, 32);
       // S5
-      tl.fromTo('#s5-copy', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }, 32.6);
-      tl.fromTo('.ws', { opacity: 0, y: 80 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 32.7);
-      ['#c1','#c2','#c3','#c4'].forEach((c, i) => tl.fromTo(c, { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.5 }, 33.8 + i * 1.5));
+      tl.fromTo('#s5-copy', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: 'power3.out' }, 35.6);
+      tl.fromTo('.ws', { opacity: 0, y: 80 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 35.7);
+      ['#c1','#c2','#c3','#c4'].forEach((c, i) => tl.fromTo(c, { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.5 }, 36.8 + i * 1.5));
       // S6
-      tl.fromTo('#s6-copy', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 1.0, ease: 'power3.out' }, 41.6);
+      tl.fromTo('#s6-copy', { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 1.0, ease: 'power3.out' }, 44.6);
       // scene crossfades
-      ['#s2','#s3','#s4','#s5','#s6'].forEach((s, i) => tl.fromTo(s, { opacity: 0 }, { opacity: 1, duration: 0.5 }, [5.5,12,22,32.5,41.5][i]));
+      ['#s2','#s3','#s4','#s5','#s6'].forEach((s, i) => tl.fromTo(s, { opacity: 0 }, { opacity: 1, duration: 0.5 }, [8.5,15,25,35.5,44.5][i]));
       window.__timelines["main"] = tl;
     </script>
   </body>
