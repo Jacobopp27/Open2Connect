@@ -14,6 +14,7 @@ nueva `checkins` para la llegada física al evento.
 import difflib
 import json
 import os
+import re
 import socket
 import time
 import unicodedata
@@ -49,7 +50,9 @@ Flujo:
    - Si hay varios resultados, desambigua con una pregunta como "¿eres [nombre] de [rol o sector]?" hasta confirmar cuál es.
    - Si NO hay resultados, todavía no la mandes al QR: pregunta UNA sola vez "¿con qué correo te registraste?" o "¿cómo se escribe tu nombre?", y vuelve a llamar a buscar_persona con ese dato nuevo.
    - Si después de ese segundo intento sigue sin aparecer, ahí sí ofrécele el QR de registro (mostrar_qr_registro).
-6. Con la persona encontrada, confirma en una frase lo que ya sabes de su perfil (su rol, qué busca, qué ofrece); pregunta solo lo que falte, una cosa a la vez: qué viene a resolver hoy en el evento y en qué puede ayudar a otros hoy. Luego pídele permiso para anotar una seña con la que otros puedan reconocerla, preguntando algo como "¿de qué color andas?".
+6. Con la persona encontrada, confirma en una frase lo que ya sabes de su perfil (su rol, qué busca, qué ofrece); pregunta solo lo que falte, una cosa a la vez: qué viene a resolver hoy en el evento y en qué puede ayudar a otros hoy. Luego, para la seña, pide permiso primero: "¿Te tomo una foto rápida para saber cómo reconocerte? No la guardamos."
+   - Si dice que SÍ: llama a describir_apariencia. Si devuelve una seña, confírmala en voz de forma natural, por ejemplo "Veo que andas de camisa azul, ¿así?"; si la persona corrige, usa la corrección. Si describir_apariencia falla o vuelve vacía, pregunta "¿de qué color andas?" como alternativa.
+   - Si dice que NO, pregunta "¿de qué color andas?" y usa esa respuesta como seña.
    - Guarda cada respuesta con confirmar_perfil apenas la tengas, sin esperar a tener todo; solo llama a confirmar_perfil si hubo cambios.
 7. Con la seña confirmada, llama a hacer_checkin con su id y la seña, y luego a recomendar con su id.
 8. Cuéntale los matches de forma natural y en un par de frases cálidas: nombre, la razón concreta, hace cuánto llegó, y su seña para reconocerla.
@@ -87,6 +90,9 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
     {"type": "function", "name": "mostrar_qr_registro",
      "description": "Muestra el QR/enlace para que la persona se registre al evento por su cuenta.",
+     "parameters": {"type": "object", "properties": {}}},
+    {"type": "function", "name": "describir_apariencia",
+     "description": "Toma una foto con la cámara del kiosco, con permiso explícito de la persona, y devuelve una descripción corta de su ropa para usarla como seña. La imagen se descarta.",
      "parameters": {"type": "object", "properties": {}}},
 ]
 
@@ -164,6 +170,52 @@ def crear_token_realtime():
     if not value:
         raise Problem('Respuesta inesperada de OpenAI Realtime. / Unexpected OpenAI Realtime response.', 502)
     return {'value': value, 'expires_at': expires_at}
+
+
+_DATA_URL_RE = re.compile(r'^data:image/(jpeg|png);base64,([A-Za-z0-9+/=]+)$')
+_MAX_IMAGEN_BYTES = int(1.5 * 1024 * 1024)
+
+
+def describir_apariencia(imagen_data_url):
+    """Convierte una foto (data URL) en una seña corta de ropa/accesorios vía un modelo de
+    visión de OpenAI. La imagen viaja solo en memoria durante esta llamada: nunca se escribe
+    a disco ni se incluye en logs (ni el data URL completo ni un fragmento), ni siquiera si
+    la solicitud falla."""
+    imagen_data_url = str(imagen_data_url or '')
+    match = _DATA_URL_RE.match(imagen_data_url)
+    if not match:
+        return {'sena': '', 'error': 'no se pudo describir'}
+    # Tamaño aproximado a partir del largo del base64 (evita decodificarlo).
+    tam_aprox = len(match.group(2)) * 3 / 4
+    if tam_aprox > _MAX_IMAGEN_BYTES:
+        return {'sena': '', 'error': 'no se pudo describir'}
+    if not OPENAI_API_KEY:
+        return {'sena': '', 'error': 'no se pudo describir'}
+    prompt = ('Describe en español, en máximo 12 palabras, cómo reconocer a esta persona en un '
+              'salón SOLO por ropa y accesorios visibles (color de camisa/buzo, gorra, gafas, '
+              'chaqueta). No describas rasgos físicos, edad, género, etnia ni rostro. Formato: '
+              '\'camisa azul, gafas\'.')
+    body = {
+        'model': os.getenv('VISION_MODEL', 'gpt-4o-mini'),
+        'messages': [{'role': 'user', 'content': [
+            {'type': 'text', 'text': prompt},
+            {'type': 'image_url', 'image_url': {'url': imagen_data_url, 'detail': 'low'}},
+        ]}],
+        'max_tokens': 60,
+    }
+    req = urllib.request.Request('https://api.openai.com/v1/chat/completions', data=json.dumps(body).encode(), method='POST')
+    req.add_header('Authorization', f'Bearer {OPENAI_API_KEY}')
+    req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read())
+        texto = str(data['choices'][0]['message']['content'] or '').strip()
+        if not texto:
+            return {'sena': '', 'error': 'no se pudo describir'}
+        return {'sena': texto[:200], 'fuente': 'foto'}
+    except Exception:
+        # No se logea el detalle: podría incluir metadatos de la imagen o la llave.
+        return {'sena': '', 'error': 'no se pudo describir'}
 
 
 def _normalized(text):
@@ -362,11 +414,11 @@ def recomendar(id, event=EVENT):
                 f"{len(vacios)} tema(s) que 3 o más personas buscan y nadie ofrece todavía en {event}.", 'medium')
         sugerencia = ('Todavía no ha llegado nadie que combine bien contigo; en un rato vuelvo a intentarlo.'
                       if not checkin_rows else 'Ya llegaron algunas personas, pero ninguna combina claramente contigo todavía.')
-        return {'recomendaciones': [], 'sugerencia': sugerencia}
+        return {'recomendaciones': [], 'sugerencia': sugerencia, 'pagina_personal': pagina_personal_url(id)}
 
     for c in top:
         ambiguous.registrar_conexion({'name': own.get('name', '')}, {'name': c['name']}, c['razon'], event)
-    return {'recomendaciones': top}
+    return {'recomendaciones': top, 'pagina_personal': pagina_personal_url(id)}
 
 
 def _ip_lan():
@@ -382,6 +434,18 @@ def _ip_lan():
             s.close()
     except OSError:
         return '127.0.0.1'
+
+
+def _base_url():
+    url = os.getenv('REGISTER_URL') or os.getenv('NEXT_PUBLIC_REGISTER_URL')
+    if not url:
+        port = os.getenv('PORT', '8000')
+        url = f'http://{_ip_lan()}:{port}/'
+    return url if url.endswith('/') else url + '/'
+
+
+def pagina_personal_url(user_id):
+    return _base_url() + 'yo/' + str(user_id)
 
 
 def mostrar_qr_registro():

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0a1f1b">
+<title>Mis conexiones · Open2Connect</title>
+<link rel="stylesheet" href="/yo.css">
+</head>
+<body>
+<div id="app">
+  <header class="yo-header">
+    <span class="brand">Open2Connect</span>
+    <h1>Hola, <span class="nombre" id="nombre">…</span></h1>
+    <p class="actualizado" id="actualizado"></p>
+  </header>
+
+  <button id="activar-avisos" type="button" hidden>Activar avisos (sonido y vibración)</button>
+
+  <div id="banner" role="status" aria-live="assertive" hidden>
+    <p class="titulo" id="banner-titulo"></p>
+    <p class="detalle" id="banner-detalle"></p>
+  </div>
+
+  <p id="vacio" hidden>Todavía no tienes matches. En cuanto lleguen personas afines al evento, aparecerán aquí.</p>
+  <div id="lista"></div>
+</div>
+<script src="/yo.js"></script>
+</body>
+</html>

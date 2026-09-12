@@ -71,6 +71,27 @@ function pintarQRRegistro(url) {
 /* Tarjetas de match al final del flujo (después de recomendar): nombre, razón,
    minutos desde que llegó y la seña para reconocerla. Mismo shape que usa /kiosk
    (backend/modules/kiosk.py → recomendar). */
+/* QR final con la página personal (matches por celular): se pinta dentro de #matches-panel,
+   creando su propio contenedor la primera vez (agent.html solo trae el panel vacío). */
+function pintarQRPersonal(url) {
+  if (!url) return;
+  const panel = $('#matches-panel');
+  let qrWrap = $('#matches-qr');
+  if (!qrWrap) {
+    qrWrap = document.createElement('div');
+    qrWrap.id = 'matches-qr';
+    const texto = document.createElement('p');
+    texto.textContent = 'Tus matches en tu celular';
+    const target = document.createElement('div');
+    target.id = 'matches-qr-target';
+    qrWrap.appendChild(texto);
+    qrWrap.appendChild(target);
+    panel.appendChild(qrWrap);
+  }
+  $('#matches-qr-target').innerHTML = '';
+  renderQR($('#matches-qr-target'), url, 200);
+}
+
 function pintarRecomendaciones(r) {
   const panel = $('#matches-panel');
   const cards = $('#matches-cards');
@@ -78,6 +99,7 @@ function pintarRecomendaciones(r) {
   if (!lista.length) {
     panel.hidden = false;
     cards.innerHTML = `<p class="hint">${esc(r.sugerencia || 'Todavía no hay una recomendación clara.')}</p>`;
+    pintarQRPersonal(r.pagina_personal);
     return;
   }
   panel.hidden = false;
@@ -89,6 +111,64 @@ function pintarRecomendaciones(r) {
       <p class="meta">Llegó hace ${esc(p.minutos_desde_llegada)} min · Anda de ${esc(p.sena)}</p>
     </article>
   `).join('');
+  pintarQRPersonal(r.pagina_personal);
+}
+
+/* Aviso breve al tomar la foto de la seña (2 s): confirma que no se guarda.
+   Estilos puestos por CSSOM (propiedad a propiedad), no por atributo style=,
+   para respetar la CSP del proyecto (style-src 'self'). */
+function mostrarAvisoFoto() {
+  const aviso = document.createElement('div');
+  aviso.textContent = '📷 Foto tomada solo para la seña; no se guarda';
+  aviso.style.position = 'fixed';
+  aviso.style.top = '16px';
+  aviso.style.left = '50%';
+  aviso.style.transform = 'translateX(-50%)';
+  aviso.style.background = '#0a1f1b';
+  aviso.style.color = '#fff';
+  aviso.style.padding = '10px 16px';
+  aviso.style.borderRadius = '8px';
+  aviso.style.zIndex = '9999';
+  aviso.style.fontSize = '14px';
+  aviso.style.boxShadow = '0 4px 14px rgba(0,0,0,.35)';
+  document.body.appendChild(aviso);
+  setTimeout(() => aviso.remove(), 2000);
+}
+
+/* Captura una foto de la cámara del kiosco (con permiso verbal ya dado por la persona al
+   agente), la reduce a máx. 640px de ancho, la manda como data URL a /api/kiosk/apariencia
+   para describirla, y apaga la cámara de inmediato. La imagen nunca se guarda en disco ni
+   se logea; solo vive en memoria del navegador durante esta llamada. */
+async function tomarFotoSena() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640 } });
+  } catch (err) {
+    return { sena: '', error: 'sin cámara' };
+  }
+  try {
+    const video = $('#cam');
+    video.srcObject = stream;
+    video.hidden = false;
+    await video.play().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const w = Math.min(640, video.videoWidth || 640);
+    const h = video.videoWidth ? Math.round((w * video.videoHeight) / video.videoWidth) : 480;
+    const canvas = $('#cam-canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    const imagen = canvas.toDataURL('image/jpeg', 0.7);
+    mostrarAvisoFoto();
+    return await api('apariencia', { imagen });
+  } catch (err) {
+    return { sena: '', error: 'sin cámara' };
+  } finally {
+    stream.getTracks().forEach((t) => t.stop());
+    const video = $('#cam');
+    video.srcObject = null;
+    video.hidden = true;
+  }
 }
 
 /* Las mismas tools del kiosco (buscar_persona, confirmar_perfil, hacer_checkin, recomendar,
@@ -117,6 +197,9 @@ const tools = {
     const r = await api('qr');
     pintarQRRegistro(r.url);
     return r;
+  },
+  async describir_apariencia() {
+    return tomarFotoSena();
   },
 };
 

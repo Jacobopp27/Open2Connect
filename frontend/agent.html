@@ -72,6 +72,10 @@
     <div id="tool-log" class="tool-log" aria-live="polite"></div>
   </main>
 </div>
+<!-- Cámara para la seña por foto (backend/modules/kiosk.py → describir_apariencia): la imagen
+     se captura en este <video>/<canvas> y nunca se guarda ni se envía salvo con permiso verbal. -->
+<video id="cam" autoplay playsinline muted hidden></video>
+<canvas id="cam-canvas" hidden></canvas>
 <script src="/qr.js" defer></script>
 <script src="/realtime.js" defer></script>
 <script src="/agent.js" defer></script>

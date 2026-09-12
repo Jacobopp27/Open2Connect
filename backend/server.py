@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from backend.db import connect, initialize
 from backend.modules.auth import Problem, authenticate, current_user
-from backend.modules import profiles, conversation, matching, connections, notifications, events, interviews, mcp_access, kiosk
+from backend.modules import profiles, conversation, matching, connections, notifications, events, interviews, mcp_access, kiosk, encuentros
 
 ROOT = Path(__file__).resolve().parent.parent / 'frontend'
 FEATURES = {'voice': os.getenv('ENABLE_VOICE','1') == '1', 'connections': os.getenv('ENABLE_CONNECTIONS','1') == '1', 'demo': os.getenv('ENABLE_DEMO','1') == '1'}
@@ -59,7 +59,9 @@ class Handler(BaseHTTPRequestHandler):
             raise Problem('Origen no permitido. / Origin not allowed.',403)
         try:
             size = int(self.headers.get('Content-Length','0'))
-            if size < 0 or size > 40000:
+            # La foto para la seña (base64) pesa más de 40 KB; solo esa ruta admite hasta 2 MB.
+            limite = 2_000_000 if urlparse(self.path).path == '/api/kiosk/apariencia' else 40000
+            if size < 0 or size > limite:
                 raise Problem('Solicitud demasiado grande. / Request too large.',413)
             payload = json.loads(self.rfile.read(size))
             if not isinstance(payload, dict):
@@ -82,7 +84,11 @@ class Handler(BaseHTTPRequestHandler):
                 files = {'/':('index.html','text/html; charset=utf-8'), '/app.js':('app.js','text/javascript; charset=utf-8'), '/styles.css':('styles.css','text/css; charset=utf-8'), '/speech.js':('speech.js','text/javascript; charset=utf-8'), '/interview.js':('interview.js','text/javascript; charset=utf-8'),
                          '/kiosk.js':('kiosk.js','text/javascript; charset=utf-8'), '/kiosk.css':('kiosk.css','text/css; charset=utf-8'),
                          '/realtime.js':('realtime.js','text/javascript; charset=utf-8'), '/agent.js':('agent.js','text/javascript; charset=utf-8'), '/agent.css':('agent.css','text/css; charset=utf-8'),
-                         '/qr.js':('qr.js','text/javascript; charset=utf-8')}
+                         '/qr.js':('qr.js','text/javascript; charset=utf-8'),
+                         '/yo.js':('yo.js','text/javascript; charset=utf-8'), '/yo.css':('yo.css','text/css; charset=utf-8')}
+                if path.startswith('/yo/'):
+                    # Página personal del asistente (QR de su celular); el id va en la URL, no hay sesión.
+                    return self.send(200,(ROOT/'yo.html').read_bytes(),content_type='text/html; charset=utf-8')
                 if path == '/kiosk':
                     # El kiosco no usa sesión de usuario; se le inyecta la llave pública de kiosco (si existe) vía <meta>.
                     html = (ROOT/'kiosk.html').read_text(encoding='utf-8').replace('__KIOSK_KEY__', KIOSK_KEY or '')
@@ -129,7 +135,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(200,kiosk.recomendar(str(payload.get('id','')),event))
                 if path == '/api/kiosk/qr':
                     return self.send(200,kiosk.mostrar_qr_registro())
+                if path == '/api/kiosk/apariencia':
+                    return self.send(200,kiosk.describir_apariencia(str(payload.get('imagen',''))))
                 raise Problem('Ruta de kiosco no disponible. / Kiosk route unavailable.',404)
+            resultado = encuentros.handle(path, post, payload, query, event)
+            if resultado is not None:
+                return self.send(200, resultado)
             bearer = self.headers.get('Authorization','')
             if bearer:
                 if not bearer.startswith('Bearer '): raise Problem('Invalid authorization',401)
