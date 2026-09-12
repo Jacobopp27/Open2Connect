@@ -1,32 +1,42 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const Voice=require('../frontend/realtime.js');
-global.document={removeEventListener(){},addEventListener(){}};
-test('closing releases microphone, playback and peer',()=>{
- const v=new Voice();let stops=0,closes=0,pauses=0;
- v.stream={getTracks:()=>[{stop:()=>stops++}]};v.pc={close:()=>closes++};
- v.audioEl={pause:()=>pauses++,srcObject:{}};
- v.cerrar();assert.equal(stops,1);assert.equal(closes,1);assert.equal(pauses,1);assert.equal(v.stream,null);
+const tick=()=>new Promise(r=>setImmediate(r));
+function harness(onTurn) {const errors=[],sent=[];const v=new Voice({onTurn,onError:e=>errors.push(e)});v.channel={readyState:'open',send:s=>sent.push(JSON.parse(s)),close(){}};return {v,errors,sent};}
+test('committed order wins over transcription completion order and duplicate delivery',async()=>{
+  const seen=[];const {v}=harness(async(t,id)=>{seen.push([t,id]);return {question:'Next?'};});
+  v.event({type:'input_audio_buffer.committed',item_id:'one'});
+  v.event({type:'input_audio_buffer.committed',item_id:'two'});
+  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'two',transcript:'Correction'});
+  await tick();assert.deepEqual(seen,[]);
+  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'one',transcript:'Original'});
+  await tick();assert.deepEqual(seen,[['Original','one'],['Correction','two']]);
+  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'one',transcript:'Original'});
+  await tick();assert.equal(seen.length,2);
 });
-test('a repeated function call executes a tool only once',async()=>{
- let count=0;const v=new Voice({tools:{save:async()=>{count++;return {ok:true}}}});
- const sent=[];v.dc={readyState:'open',send:s=>sent.push(JSON.parse(s))};
- const event={call_id:'one',name:'save',arguments:'{}'};
- await Promise.all([v._ejecutarHerramienta(event),v._ejecutarHerramienta(event)]);
- assert.equal(count,1);assert.equal(sent.filter(e=>e.type==='function_call_output').length,0);
- assert.equal(sent.filter(e=>e.type==='conversation.item.create').length,1);
+test('failed extraction retains its item and retries before later corrections',async()=>{
+  let fail=true;const seen=[];const {v,errors}=harness(async(t)=>{if(fail)throw Error('retry');seen.push(t);return {question:'Next?'};});
+  for(const id of ['one','two'])v.event({type:'input_audio_buffer.committed',item_id:id});
+  for(const id of ['one','two'])v.event({type:'conversation.item.input_audio_transcription.completed',item_id:id,transcript:id});
+  await tick();assert.equal(errors.length,1);assert.equal(v.queue.length,2);assert.equal(v.failed,true);
+  fail=false;await v.retry();assert.deepEqual(seen,['one','two']);assert.equal(v.unsettled,false);
 });
-test('closed sessions do not send late tool results',async()=>{
- let resolve;const v=new Voice({tools:{save:()=>new Promise(r=>resolve=r)}});
- const result=v._ejecutarHerramienta({call_id:'one',name:'save',arguments:'{}'});
- v.cerrar();let sent=0;v.dc={readyState:'open',send:()=>sent++};resolve({ok:true});await result;assert.equal(sent,0);
+test('disposing during microphone permission stops a late stream',async()=>{
+  let resolve;let stopped=0;
+  const v=new Voice({Peer:class{},media:{getUserMedia:()=>new Promise(r=>resolve=r)}});
+  const starting=v.start('Name?');v.dispose();resolve({getTracks:()=>[{stop:()=>stopped++}]});await starting;
+  assert.equal(stopped,1);assert.equal(v.active,false);
 });
-test('microphone acquired after cancellation is immediately stopped',async()=>{
- let resolve,stopped=0;
- global.fetch=async()=>({ok:true,json:async()=>({value:'fake'})});
- global.RTCPeerConnection=class{close(){}};
- Object.defineProperty(global,'navigator',{configurable:true,value:{mediaDevices:{getUserMedia:()=>new Promise(r=>resolve=r)}}});
- const v=new Voice();const start=v.conectar();
- while(!resolve)await new Promise(r=>setImmediate(r));
- v.cerrar();resolve({getTracks:()=>[{stop:()=>stopped++}]});await start;assert.equal(stopped,1);
+test('stop closes microphone, playback and connection',()=>{
+  const {v}=harness(async()=>{});let stopped=0,closed=0,paused=0;
+  v.stream={getTracks:()=>[{stop:()=>stopped++}]};v.peer={close:()=>closed++};v.audio={pause:()=>paused++,srcObject:{}};
+  v.stop();assert.equal(stopped,1);assert.equal(closed,1);assert.equal(paused,1);assert.equal(v.active,false);
+});
+test('pause waits for queued extraction and never asks another question',async()=>{
+  let resolve;const {v,sent}=harness(()=>new Promise(r=>resolve=r));
+  v.peer={close(){}};
+  v.event({type:'input_audio_buffer.committed',item_id:'one'});
+  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'one',transcript:'Alex'});
+  const finish=v.finish();resolve({question:'Next?'});await finish;
+  assert.equal(v.active,false);assert.equal(sent.some(e=>e.type==='response.create'),false);
 });

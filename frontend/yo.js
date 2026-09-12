@@ -6,7 +6,6 @@ const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const POLL_MS = 10000;
-const eventQuery = 'event=' + encodeURIComponent(new URLSearchParams(location.search).get('event') || 'medellin-2026');
 const myId = decodeURIComponent((location.pathname.match(/\/yo\/([^/]+)/) || [, ''])[1]);
 
 // checked_in_at previo por match id, para detectar la transición "no llegado" -> "llegado".
@@ -67,7 +66,7 @@ async function confirmarConocidos(otroId, btn) {
   btn.disabled = true;
   btn.textContent = 'Guardando…';
   try {
-    await api('/api/yo/confirmar?' + eventQuery, {
+    await api('/api/yo/confirmar', {
       method: 'POST',
       headers: { 'X-Open2Connect': '1', 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: myId, otro: otroId }),
@@ -126,7 +125,7 @@ function render(estado) {
 
 async function poll() {
   try {
-    const estado = await api(`/api/yo/estado?id=${encodeURIComponent(myId)}&${eventQuery}`, { method: 'GET' });
+    const estado = await api(`/api/yo/estado?id=${encodeURIComponent(myId)}`, { method: 'GET' });
     if (estado.error) {
       $('#nombre').textContent = '';
       $('#vacio').hidden = false;
@@ -135,8 +134,7 @@ async function poll() {
     }
     render(estado);
   } catch (e) {
-    $('#vacio').hidden = false;
-    $('#vacio').textContent = e.message + ' Inicia sesión en Open2Connect con tu cuenta para ver esta página.';
+    // Silencioso: la próxima ronda de sondeo reintenta.
   }
 }
 

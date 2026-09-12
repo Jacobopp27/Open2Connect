@@ -17,7 +17,7 @@ services:
     # Puedes dejar este comando vacío ("echo 'no deps'") si NO vas a usar
     # PROFILE_STORE=supabase ni el modo de entrevista con OpenAI: el resto
     # de la app corre solo con la librería estándar de Python.
-    buildCommand: pip install -r requirements-integrations.lock.txt
+    buildCommand: pip install -r requirements-integrations.txt
     startCommand: python3 -m backend.server
     healthCheckPath: /api/health
     autoDeploy: true
@@ -31,16 +31,8 @@ services:
         value: '1'
       - key: ENABLE_DEMO
         value: '0'
-      - key: DATABASE_PROVIDER
-        value: postgres
       - key: PROFILE_STORE
-        value: postgres
-      - key: SUPABASE_DB_URL
-        sync: false
-      - key: SUPABASE_DB_CA
-        value: supabase/certs/prod-ca-2021.crt
-      - key: ENABLE_EXTERNAL_SYNC
-        value: '0'
+        value: sqlite # Cambiar a "supabase" para persistencia real de perfiles (ver docs/DEPLOY_RENDER.md).
       # APP_ORIGIN y REGISTER_URL deben ser la URL pública del servicio
       # (p. ej. https://open2connect.onrender.com o el dominio que asigne
       # Render). Render expone RENDER_EXTERNAL_URL en tiempo de ejecución,
@@ -54,6 +46,8 @@ services:
       - key: REGISTER_URL
         sync: false
       # Llaves y credenciales: nunca en el repo, se cargan en el panel de Render.
+      - key: KIOSK_KEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: AMBIGUOUS_AGENT_KEY

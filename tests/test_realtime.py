@@ -23,8 +23,16 @@ class RealtimeTest(unittest.TestCase):
         with patch.dict(os.environ,{'OPENAI_API_KEY':'','OPENAI_MODEL':''}):
             self.assertEqual(self.h.req('interviews/start',{'mode':'realtime'},self.h.a)[0],400)
             self.assertEqual(self.h.req('interviews/start',{'mode':'realtime','ai_consent':True},self.h.a)[0],503)
-    def test_retired_web_voice_route_is_unavailable(self):
-        self.assertEqual(self.h.req('interviews/voice',{'id':'retired'},self.h.a)[0],404)
+    def test_voice_owner_csrf_mode_and_rate_limit(self):
+        s=self.start();p={'id':s['id'],'revision':0,'sdp':'v=0\r\n'}
+        with patch('backend.adapters.realtime_voice.connect',return_value={'sdp':'v=0\r\nanswer'}) as connect:
+            self.assertEqual(self.h.req('interviews/voice',p,self.h.b)[0],404)
+            self.assertEqual(self.h.req('interviews/voice',p,self.h.a,{'X-Open2Connect':''})[0],403)
+            self.assertEqual(connect.call_count,0)
+            for _ in range(3):self.assertEqual(self.h.req('interviews/voice',p,self.h.a)[0],200)
+            self.assertEqual(self.h.req('interviews/voice',p,self.h.a)[0],429)
+            self.assertEqual(connect.call_count,3)
+        self.assertFalse(self.h.req('profile',cookie=self.h.a)[1]['saved'])
     def test_transcript_retry_idempotence_and_grounding(self):
         s=self.start();p={'id':s['id'],'revision':0,'text':'Soy Alex','turn_id':'audio-1'}
         result={'notes':[{'field':'name','value':'Alex','quote':'Soy Alex'}],'question':'¿Qué haces?','ask_field':'role'}
