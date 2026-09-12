@@ -1,0 +1,72 @@
+# Render Blueprint — despliegue nativo de Python (sin Docker), plan gratis.
+# Referencia: https://render.com/docs/blueprint-spec y docs/DEPLOY_RENDER.md
+#
+# Región: "virginia" (US East, Ashburn). Render no ofrece región en Sudamérica;
+# entre las disponibles (oregon, ohio, virginia, frankfurt, singapore), virginia
+# es un hub de interconexión mayor con mejor conectividad típica hacia
+# Latinoamérica (vía Miami) que oregon (costa oeste de EE. UU.). Cambia a
+# "ohio" si prefieres esa alternativa; no se puede modificar tras crear el
+# servicio.
+services:
+  - name: open2connect
+    type: web
+    runtime: python
+    plan: free
+    region: virginia
+    # Build: instala las dependencias opcionales (OpenAI, MCP, Supabase).
+    # Puedes dejar este comando vacío ("echo 'no deps'") si NO vas a usar
+    # PROFILE_STORE=supabase ni el modo de entrevista con OpenAI: el resto
+    # de la app corre solo con la librería estándar de Python.
+    buildCommand: pip install -r requirements-integrations.txt
+    startCommand: python3 -m backend.server
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # Render inyecta PORT automáticamente (por defecto 10000); no lo definas aquí.
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: COOKIE_SECURE
+        value: '1'
+      - key: ENABLE_DEMO
+        value: '0'
+      - key: PROFILE_STORE
+        value: sqlite # Cambiar a "supabase" para persistencia real de perfiles (ver docs/DEPLOY_RENDER.md).
+      # APP_ORIGIN y REGISTER_URL deben ser la URL pública del servicio
+      # (p. ej. https://open2connect.onrender.com o el dominio que asigne
+      # Render). Render expone RENDER_EXTERNAL_URL en tiempo de ejecución,
+      # pero el Blueprint solo permite "fromService" con las propiedades
+      # host/port/hostport de la red privada (no la URL pública https), así
+      # que no hay forma de auto-rellenarlas desde este archivo: se cargan
+      # a mano en el panel después del primer deploy, cuando ya conoces la
+      # URL asignada (ver docs/DEPLOY_RENDER.md).
+      - key: APP_ORIGIN
+        sync: false
+      - key: REGISTER_URL
+        sync: false
+      # Llaves y credenciales: nunca en el repo, se cargan en el panel de Render.
+      - key: KIOSK_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AMBIGUOUS_AGENT_KEY
+        sync: false
+      - key: AMBIGUOUS_SHEET_ID
+        sync: false
+      - key: AMBIGUOUS_CHANNEL_ID
+        sync: false
+      - key: AMBIGUOUS_ORGANIZER_USER_ID
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      # backend/adapters/profile_store.py lee SUPABASE_SECRET_KEY primero y
+      # cae a SUPABASE_SERVICE_ROLE_KEY (legado); backend/modules/perfilador.py
+      # solo lee SUPABASE_SERVICE_ROLE_KEY. Define la que corresponda a tu
+      # proyecto Supabase (o ambas, con el mismo valor).
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
