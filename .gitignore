@@ -19,3 +19,8 @@ node_modules/
 coverage/
 .DS_Store
 *.log
+
+# Skills instaladas con "npx skills add" (no forman parte del producto)
+.agents/skills/*
+!.agents/skills/voice-profile-interview/
+skills-lock.json

@@ -88,8 +88,10 @@
         const answerSdp = await sdpResp.text();
         await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
-        document.addEventListener('pointerdown', this._resumeCtx, { once: true });
-        document.addEventListener('keydown', this._resumeCtx, { once: true });
+        if (typeof document !== 'undefined') {
+          document.addEventListener('pointerdown', this._resumeCtx, { once: true });
+          document.addEventListener('keydown', this._resumeCtx, { once: true });
+        }
       } catch (err) {
         this._estado('error');
         throw err;
@@ -229,13 +231,18 @@
       if (this.dc) { try { this.dc.close(); } catch (e) { /* ya cerrado */ } }
       if (this.pc) { try { this.pc.close(); } catch (e) { /* ya cerrado */ } }
       if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
-      document.removeEventListener('pointerdown', this._resumeCtx);
-      document.removeEventListener('keydown', this._resumeCtx);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('pointerdown', this._resumeCtx);
+        document.removeEventListener('keydown', this._resumeCtx);
+      }
       this.pc = this.dc = this.stream = this.analyser = null;
       this._agentHablando = false;
       this._estado('inactivo');
     }
   }
 
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = O2CRealtime;
+  }
   global.O2CRealtime = O2CRealtime;
-})(window);
+})(typeof window !== 'undefined' ? window : globalThis);

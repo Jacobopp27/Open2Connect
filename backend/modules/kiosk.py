@@ -261,21 +261,23 @@ def buscar_persona(nombre='', email='', event=EVENT):
     email = str(email or '').strip().lower()
     if not nombre and not email:
         raise Problem('Falta el nombre para buscar. / Missing name to search.')
+    from backend.adapters.profile_store import store
+    participants = store().participants(event)
     with connect() as db:
-        rows = db.execute('''SELECT u.id,u.email,u.profile,p.data FROM users u
-          LEFT JOIN profiles p ON p.user_id=u.id AND p.event_id=? WHERE u.demo=0''', (event,)).fetchall()
+        user_emails = {r['id']: r['email'] for r in db.execute('SELECT id,email FROM users WHERE demo=0').fetchall()}
     query = _normalized(nombre)
     tokens = [t for t in query.split(' ') if t]
     resultados = []
-    for row in rows:
+    for row in participants:
+        if row['id'] not in user_emails:
+            continue
+        u_email = user_emails[row['id']].lower()
         general, evento = _perfil_de(row)
         name = general.get('name', '')
         name_norm = _normalized(name)
         name_tokens = [t for t in name_norm.split(' ') if t]
-        is_email_match = bool(email) and row['email'].lower() == email
-        # LIKE normalizado (sin tildes) original: substring completo o todos los tokens presentes.
+        is_email_match = bool(email) and u_email == email
         is_substr_match = bool(query) and (query in name_norm or (tokens and all(t in name_norm for t in tokens)))
-        # Tolerante a errores de transcripción: similitud difusa token a token.
         ratio = _mejor_ratio_tokens(tokens, name_tokens) if (tokens and name_tokens) else 0.0
         if not (is_email_match or is_substr_match or ratio >= 0.75):
             continue
@@ -296,7 +298,7 @@ def buscar_persona(nombre='', email='', event=EVENT):
             'id': row['id'], 'name': name, 'role': general.get('role', ''), 'sector': general.get('sector', ''),
             'busca': ' · '.join(x for x in (evento.get('help', ''), evento.get('problem', '')) if x),
             'ofrece': evento.get('skills', ''),
-            'registrado': row['data'] is not None,
+            'registrado': bool(row.get('data')),
             'confianza': confianza,
             '_score': score,
         })
@@ -315,21 +317,28 @@ CAMPOS_CAMBIO = {'busca': ('event', 'help'), 'problema': ('event', 'problem'), '
 def confirmar_perfil(id, cambios, event=EVENT):
     if not isinstance(cambios, dict) or not cambios:
         raise Problem('No hay cambios que confirmar. / No changes to confirm.')
-    with connect() as db:
-        row = db.execute('''SELECT u.id,u.email,u.profile,p.data FROM users u
-          LEFT JOIN profiles p ON p.user_id=u.id AND p.event_id=? WHERE u.id=?''', (event, id)).fetchone()
-        if not row:
-            raise Problem('Persona no encontrada. / Person not found.', 404)
-        general, evento = _perfil_de(row)
-        for clave, valor in cambios.items():
-            destino = CAMPOS_CAMBIO.get(clave)
-            if not destino or not isinstance(valor, str) or not valor.strip():
-                continue
-            valor = valor.strip()[:1500]
-            (general if destino[0] == 'general' else evento)[destino[1]] = valor
-        db.execute('UPDATE users SET profile=? WHERE id=?', (json.dumps(general), id))
-        db.execute('''INSERT INTO profiles(user_id,event_id,data,visible) VALUES (?,?,?,1)
-          ON CONFLICT(user_id,event_id) DO UPDATE SET data=excluded.data''', (id, event, json.dumps(evento)))
+    from backend.adapters.profile_store import store
+    from backend.modules import profiles
+    p_store = store()
+    prof = p_store.get(id, event)
+    if not prof:
+        raise Problem('Persona no encontrada. / Person not found.', 404)
+    general = {k: prof.get(k, '') for k in profiles.GENERAL}
+    evento = {k: prof.get(k, '') for k in profiles.EVENT + ['share_contact']}
+    visible = prof.get('visible', True)
+    modified = False
+    for clave, valor in cambios.items():
+        destino = CAMPOS_CAMBIO.get(clave)
+        if not destino or not isinstance(valor, str) or not valor.strip():
+            continue
+        valor = valor.strip()[:1500]
+        tipo, campo = destino
+        target_dict = general if tipo == 'general' else evento
+        if target_dict.get(campo) != valor:
+            target_dict[campo] = valor
+            modified = True
+    if modified:
+        p_store.save(id, event, general, evento, visible)
     return {'confirmado': True, 'rol': general.get('role', ''), 'busca': evento.get('help', ''), 'problema': evento.get('problem', ''), 'ofrece': evento.get('skills', '')}
 
 
@@ -363,23 +372,27 @@ def _joined(perfil, campos):
 
 
 def recomendar(id, event=EVENT):
-    with connect() as db:
-        own_row = db.execute('''SELECT u.id,u.profile,p.data FROM users u
-          LEFT JOIN profiles p ON p.user_id=u.id AND p.event_id=? WHERE u.id=?''', (event, id)).fetchone()
-        if not own_row:
-            raise Problem('Persona no encontrada. / Person not found.', 404)
-        checkin_rows = db.execute('''SELECT u.id,u.profile,p.data,c.checked_in_at,c.sena FROM checkins c
-          JOIN users u ON u.id=c.user_id LEFT JOIN profiles p ON p.user_id=u.id AND p.event_id=c.event_id
-          WHERE c.event_id=? AND c.user_id!=?''', (event, id)).fetchall()
-        todos_rows = db.execute('SELECT u.profile,p.data FROM users u JOIN profiles p ON p.user_id=u.id WHERE p.event_id=?', (event,)).fetchall()
+    from backend.adapters.profile_store import store
+    p_store = store()
+    own = p_store.get(id, event)
+    if not own or not own.get('name'):
+        raise Problem('Persona no encontrada. / Person not found.', 404)
 
-    own_general, own_evento = _perfil_de(own_row)
-    own = {**own_general, **own_evento}
+    participants = p_store.participants(event)
+    participant_map = {p['id']: p for p in participants}
+
+    with connect() as db:
+        checkin_rows = db.execute('''SELECT c.user_id,c.checked_in_at,c.sena FROM checkins c
+          WHERE c.event_id=? AND c.user_id!=?''', (event, id)).fetchall()
+
     own_need, own_offer, own_affinity = terms(_joined(own, NEED_FIELDS)), terms(_joined(own, OFFER_FIELDS)), terms(_joined(own, AFFINITY_FIELDS))
 
     candidatos = []
-    for row in checkin_rows:
-        general, evento = _perfil_de(row)
+    for crow in checkin_rows:
+        p_data = participant_map.get(crow['user_id'])
+        if not p_data:
+            continue
+        general, evento = _perfil_de(p_data)
         perfil = {**general, **evento}
         need, offer, affinity = terms(_joined(perfil, NEED_FIELDS)), terms(_joined(perfil, OFFER_FIELDS)), terms(_joined(perfil, AFFINITY_FIELDS))
         te_ayuda, ayudas = sorted(own_need & offer), sorted(own_offer & need)
@@ -396,9 +409,9 @@ def recomendar(id, event=EVENT):
             razon = f"Ambos buscan lo mismo: {', '.join(necesidad_comun)}."
         else:
             razon = f"Comparten interés en {', '.join(interes_comun)}."
-        candidatos.append({'id': row['id'], 'name': nombre, 'role': general.get('role', ''), 'razon': razon,
-                            'minutos_desde_llegada': max(0, int((time.time() - row['checked_in_at']) / 60)),
-                            'sena': row['sena'], '_score': score})
+        candidatos.append({'id': crow['user_id'], 'name': nombre, 'role': general.get('role', ''), 'razon': razon,
+                            'minutos_desde_llegada': max(0, int((time.time() - crow['checked_in_at']) / 60)),
+                            'sena': crow['sena'], '_score': score})
 
     candidatos.sort(key=lambda c: (-c['_score'], c['name']))
     top = candidatos[:2]
@@ -407,8 +420,8 @@ def recomendar(id, event=EVENT):
 
     if not top:
         necesita, ofrece = {}, {}
-        for row in todos_rows:
-            general, evento = _perfil_de(row)
+        for p_data in participants:
+            general, evento = _perfil_de(p_data)
             perfil = {**general, **evento}
             for tag in terms(_joined(perfil, NEED_FIELDS)):
                 necesita[tag] = necesita.get(tag, 0) + 1
@@ -425,6 +438,7 @@ def recomendar(id, event=EVENT):
 
     for c in top:
         ambiguous.registrar_conexion({'name': own.get('name', '')}, {'name': c['name']}, c['razon'], event)
+
     return {'recomendaciones': top, 'pagina_personal': pagina_personal_url(id)}
 
 

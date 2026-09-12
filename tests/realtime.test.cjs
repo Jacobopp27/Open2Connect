@@ -1,42 +1,117 @@
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const Voice=require('../frontend/realtime.js');
-const tick=()=>new Promise(r=>setImmediate(r));
-function harness(onTurn) {const errors=[],sent=[];const v=new Voice({onTurn,onError:e=>errors.push(e)});v.channel={readyState:'open',send:s=>sent.push(JSON.parse(s)),close(){}};return {v,errors,sent};}
-test('committed order wins over transcription completion order and duplicate delivery',async()=>{
-  const seen=[];const {v}=harness(async(t,id)=>{seen.push([t,id]);return {question:'Next?'};});
-  v.event({type:'input_audio_buffer.committed',item_id:'one'});
-  v.event({type:'input_audio_buffer.committed',item_id:'two'});
-  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'two',transcript:'Correction'});
-  await tick();assert.deepEqual(seen,[]);
-  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'one',transcript:'Original'});
-  await tick();assert.deepEqual(seen,[['Original','one'],['Correction','two']]);
-  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'one',transcript:'Original'});
-  await tick();assert.equal(seen.length,2);
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const O2CRealtime = require('../frontend/realtime.js');
+
+function mockDataChannel() {
+  const sent = [];
+  const listeners = {};
+  return {
+    readyState: 'open',
+    send(s) { sent.push(JSON.parse(s)); },
+    addEventListener(evt, fn) { listeners[evt] = fn; },
+    close() { this.readyState = 'closed'; if (listeners.close) listeners.close(); },
+    _trigger(evt, data) { if (listeners[evt]) listeners[evt]({ data: JSON.stringify(data) }); },
+    sent,
+    listeners
+  };
+}
+
+function mockStream() {
+  let trackEnabled = false;
+  return {
+    getAudioTracks() {
+      return [{
+        get enabled() { return trackEnabled; },
+        set enabled(v) { trackEnabled = v; }
+      }];
+    },
+    getTracks() { return this.getAudioTracks(); }
+  };
+}
+
+test('O2CRealtime constructor initializes defaults', () => {
+  const r = new O2CRealtime();
+  assert.equal(r.tokenUrl, '/api/kiosk/token');
+  assert.equal(r.estaConectado(), false);
 });
-test('failed extraction retains its item and retries before later corrections',async()=>{
-  let fail=true;const seen=[];const {v,errors}=harness(async(t)=>{if(fail)throw Error('retry');seen.push(t);return {question:'Next?'};});
-  for(const id of ['one','two'])v.event({type:'input_audio_buffer.committed',item_id:id});
-  for(const id of ['one','two'])v.event({type:'conversation.item.input_audio_transcription.completed',item_id:id,transcript:id});
-  await tick();assert.equal(errors.length,1);assert.equal(v.queue.length,2);assert.equal(v.failed,true);
-  fail=false;await v.retry();assert.deepEqual(seen,['one','two']);assert.equal(v.unsettled,false);
+
+test('push-to-talk empezarAHablar and terminarDeHablar toggle tracks and send data channel events', () => {
+  const events = [];
+  const r = new O2CRealtime({ onEvent: (t, d) => events.push([t, d]) });
+  const dc = mockDataChannel();
+  const stream = mockStream();
+  r.dc = dc;
+  r.stream = stream;
+
+  assert.equal(r.estaConectado(), true);
+
+  r.empezarAHablar();
+  assert.equal(stream.getAudioTracks()[0].enabled, true);
+  assert.deepEqual(dc.sent, [{ type: 'input_audio_buffer.clear' }]);
+  assert.equal(events[events.length - 1][1], 'escuchando');
+
+  r.terminarDeHablar();
+  assert.equal(stream.getAudioTracks()[0].enabled, false);
+  assert.deepEqual(dc.sent[1], { type: 'input_audio_buffer.commit' });
+  assert.deepEqual(dc.sent[2], { type: 'response.create' });
+  assert.equal(events[events.length - 1][1], 'pensando');
 });
-test('disposing during microphone permission stops a late stream',async()=>{
-  let resolve;let stopped=0;
-  const v=new Voice({Peer:class{},media:{getUserMedia:()=>new Promise(r=>resolve=r)}});
-  const starting=v.start('Name?');v.dispose();resolve({getTracks:()=>[{stop:()=>stopped++}]});await starting;
-  assert.equal(stopped,1);assert.equal(v.active,false);
+
+test('data channel transcription event emits transcripcion_persona', () => {
+  const events = [];
+  const r = new O2CRealtime({ onEvent: (t, d) => events.push([t, d]) });
+  const dc = mockDataChannel();
+  r._wireDataChannel(dc);
+
+  dc._trigger('message', {
+    type: 'conversation.item.input_audio_transcription.completed',
+    transcript: 'Hola, soy Alex'
+  });
+
+  assert.deepEqual(events, [['transcripcion_persona', 'Hola, soy Alex']]);
 });
-test('stop closes microphone, playback and connection',()=>{
-  const {v}=harness(async()=>{});let stopped=0,closed=0,paused=0;
-  v.stream={getTracks:()=>[{stop:()=>stopped++}]};v.peer={close:()=>closed++};v.audio={pause:()=>paused++,srcObject:{}};
-  v.stop();assert.equal(stopped,1);assert.equal(closed,1);assert.equal(paused,1);assert.equal(v.active,false);
+
+test('data channel tool execution invokes tool function and sends output', async () => {
+  const events = [];
+  let toolCalledWith = null;
+  const tools = {
+    buscar_persona: async (args) => {
+      toolCalledWith = args;
+      return { resultados: [{ id: 'u1', name: 'Alex' }] };
+    }
+  };
+  const r = new O2CRealtime({ tools, onEvent: (t, d) => events.push([t, d]) });
+  const dc = mockDataChannel();
+  r.dc = dc;
+  r._wireDataChannel(dc);
+
+  dc._trigger('message', {
+    type: 'response.function_call_arguments.done',
+    name: 'buscar_persona',
+    call_id: 'call_123',
+    arguments: JSON.stringify({ nombre: 'Alex' })
+  });
+
+  await new Promise(r => setTimeout(r, 20));
+
+  assert.deepEqual(toolCalledWith, { nombre: 'Alex' });
+  assert.equal(dc.sent[0].type, 'conversation.item.create');
+  assert.equal(dc.sent[0].item.call_id, 'call_123');
+  assert.equal(JSON.parse(dc.sent[0].item.output).resultados[0].name, 'Alex');
+  assert.equal(dc.sent[1].type, 'response.create');
 });
-test('pause waits for queued extraction and never asks another question',async()=>{
-  let resolve;const {v,sent}=harness(()=>new Promise(r=>resolve=r));
-  v.peer={close(){}};
-  v.event({type:'input_audio_buffer.committed',item_id:'one'});
-  v.event({type:'conversation.item.input_audio_transcription.completed',item_id:'one',transcript:'Alex'});
-  const finish=v.finish();resolve({question:'Next?'});await finish;
-  assert.equal(v.active,false);assert.equal(sent.some(e=>e.type==='response.create'),false);
+
+test('cerrar cleans up stream and resets state to inactivo', () => {
+  const events = [];
+  let stopped = 0;
+  const r = new O2CRealtime({ onEvent: (t, d) => events.push([t, d]) });
+  r.dc = mockDataChannel();
+  r.stream = { getTracks: () => [{ stop: () => stopped++ }] };
+
+  r.cerrar();
+
+  assert.equal(stopped, 1);
+  assert.equal(r.pc, null);
+  assert.equal(r.dc, null);
+  assert.equal(events[events.length - 1][1], 'inactivo');
 });
