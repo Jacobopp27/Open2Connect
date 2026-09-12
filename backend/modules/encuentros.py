@@ -37,24 +37,25 @@ def _par(a, b):
 def _matches_de(id, event):
     """Copia de solo lectura del puntaje de kiosk.recomendar, contra todos los perfiles
     del evento (no solo quienes ya hicieron check-in). Devuelve None si `id` no existe."""
-    with connect() as db:
-        own_row = db.execute('''SELECT u.id,u.profile,p.data FROM users u
-          LEFT JOIN profiles p ON p.user_id=u.id AND p.event_id=? WHERE u.id=?''', (event, id)).fetchone()
-        if not own_row:
-            return None
-        rows = db.execute('''SELECT u.id,u.profile,p.data,c.checked_in_at,c.sena FROM users u
-          JOIN profiles p ON p.user_id=u.id AND p.event_id=?
-          LEFT JOIN checkins c ON c.user_id=u.id AND c.event_id=?
-          WHERE u.id!=? AND u.demo=0''', (event, event, id)).fetchall()
+    from backend.adapters.profile_store import store
+    p_store = store()
+    own_general = p_store.get(id, event)
+    if not own_general or not own_general.get('name'):
+        return None
 
-    own_general, own_evento = _perfil_de(own_row)
-    own = {**own_general, **own_evento}
-    own_need = terms(_joined(own, NEED_FIELDS))
-    own_offer = terms(_joined(own, OFFER_FIELDS))
-    own_affinity = terms(_joined(own, AFFINITY_FIELDS))
+    participants = p_store.participants(event)
+    with connect() as db:
+        checkin_rows = db.execute('SELECT user_id, checked_in_at, sena FROM checkins WHERE event_id=?', (event,)).fetchall()
+        checkins = {r['user_id']: (r['checked_in_at'], r['sena']) for r in checkin_rows}
+
+    own_need = terms(_joined(own_general, NEED_FIELDS))
+    own_offer = terms(_joined(own_general, OFFER_FIELDS))
+    own_affinity = terms(_joined(own_general, AFFINITY_FIELDS))
 
     candidatos = []
-    for row in rows:
+    for row in participants:
+        if row['id'] == id or row.get('demo') == 1:
+            continue
         general, evento = _perfil_de(row)
         perfil = {**general, **evento}
         need = terms(_joined(perfil, NEED_FIELDS))
@@ -74,9 +75,10 @@ def _matches_de(id, event):
             razon = f"Ambos buscan lo mismo: {', '.join(necesidad_comun)}."
         else:
             razon = f"Comparten interés en {', '.join(interes_comun)}."
+        c_at, sena = checkins.get(row['id'], (None, ''))
         candidatos.append({
             'id': row['id'], 'name': nombre, 'role': general.get('role', ''), 'razon': razon,
-            'sena': row['sena'] or '', 'checked_in_at': row['checked_in_at'], '_score': score,
+            'sena': sena or '', 'checked_in_at': c_at, '_score': score,
         })
 
     candidatos.sort(key=lambda c: (-c['_score'], c['name']))

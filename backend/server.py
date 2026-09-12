@@ -159,7 +159,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,interviews.get(user,query.get('id',[''])[0]))
             if path.startswith('/api/interviews/') and post:
                 action = path.rsplit('/',1)[-1]
-                handler = {'turn':interviews.turn,'edit':interviews.edit_draft,'summary':interviews.summary,'confirm':interviews.confirm,'control':interviews.control}.get(action)
+                handler = {'turn':interviews.turn,'edit':interviews.edit_draft,'summary':interviews.summary,'confirm':interviews.confirm,'control':interviews.control,'voice':interviews.connect_voice}.get(action)
                 if handler: return self.send(200,handler(user,payload))
             if path == '/api/me' and not post:
                 return self.send(200,{'id':user['id'],'email':user['email']})
@@ -215,7 +215,7 @@ def run():
     initialize()
     host, port = os.getenv('HOST','127.0.0.1'), int(os.getenv('PORT','8000'))
     server = ThreadingHTTPServer((host,port),Handler)
-    print(f'Open2Connect → http://{host}:{port}',flush=True)
+    print(f'Open2Connect -> http://{host}:{port}',flush=True)
     server.serve_forever()
 
 if __name__ == '__main__':
