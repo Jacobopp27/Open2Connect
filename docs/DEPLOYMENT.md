@@ -21,8 +21,6 @@ No usar una base de datos efímera o el sistema de archivos de una función serv
 
 `GET /api/health` es el endpoint de disponibilidad. Tras pasar el gate local del plan del equipo, desplegar solo con autorización y repetir las pruebas de dos usuarios en HTTPS: sesión, persistencia después de reiniciar, ES/EN, dictado/fallback, cero resultados, filtros, aceptación/rechazo y revocación de contacto. Verificar cookies Secure y bloqueo de solicitudes desde otros orígenes. Usar solo cuentas sintéticas de prueba.
 
-## Adaptador de IA pendiente
+## Entrevista, IA, MCP y Supabase
 
-El punto de sustitución es `backend/modules/conversation.py`, método `extract(text, profile)`. El contrato devuelve `profile`, `changes`, `missing`, `adapter` y `saved: false`. Un futuro adaptador debe validar esquema, conservar hechos no modificados, no inferir campos, pedir aclaraciones y mantener confirmación separada en `/api/profile`.
-
-No hay proveedor ni modelo LLM configurado. No basta con añadir una clave: hace falta implementar el adaptador del proveedor elegido, definir qué texto se envía, consentimiento, tiempo de espera y fallback, y probar respuestas inválidas y fallos. Nunca enviar el correo de autenticación, contraseña, token de sesión o contacto privado al extractor. Las claves vivirán solo en el servidor, fuera de Git.
+El adaptador real de OpenAI, puente MCP local autenticado y repositorio Supabase están implementados. La configuración, migraciones, fronteras de autorización y limitaciones de prueba están en [INTERVIEW.md](INTERVIEW.md). No se han verificado conexiones remotas: faltan credenciales/proyecto. Antes de exponer el servicio, validar con el proveedor real, ejecutar las pruebas SQL en un proyecto de prueba autorizado y definir retención/consentimiento. El estado transitorio de entrevista vive en un único proceso; escalar requiere un repositorio de borradores con TTL y control de versiones compartido.

@@ -12,6 +12,10 @@ python3 -m backend.server
 
 Abre **http://127.0.0.1:8000**. No requiere paquetes ni claves API. La base se crea automáticamente en `data/open2connect.db` y el perfil confirmado persiste al recargar o volver a iniciar sesión. Detén el servidor con Ctrl+C. Reinícialo después de modificar código Python; el frontend se actualiza al recargar.
 
+## Entrevista por voz y nuevas integraciones
+
+Abre **Entrevista / Interview** para conversar una pregunta a la vez, dictar o escribir, pausar/reanudar, corregir notas y confirmar el perfil. La guía local funciona sin claves; el adaptador real de OpenAI requiere configuración y consentimiento. Se incluyen un puente MCP autenticado y un repositorio de perfiles Supabase configurable. Ninguna integración remota está activada por defecto. [Configuración, pruebas y límites](docs/INTERVIEW.md).
+
 ## Demo interactiva
 
 1. Crea una cuenta local con un correo de prueba y una contraseña de al menos 10 caracteres. Para pruebas, utiliza direcciones ficticias `@example.invalid`.
@@ -41,14 +45,14 @@ Para repetir desde cero **sin borrar datos existentes**, arranca otra base con u
 OPEN2CONNECT_DB=data/demo-ensayo-02.db PORT=8001 python3 -m backend.server
 ```
 
-No se crean participantes de manera silenciosa. El botón DEMO añade los mismos tres perfiles una sola vez y conserva cualquier cuenta existente.
+No se crean participantes de manera silenciosa. Puedes indicar explícitamente que no tienes necesidades u ofertas; no es obligatorio tener ambas. El botón DEMO añade los mismos tres perfiles una sola vez y conserva cualquier cuenta existente.
 
 ## Qué funciona y qué está limitado
 
 - Perfiles generales reutilizables; propósito, necesidades, ofertas, disponibilidad y contacto separados por evento.
 - Sesiones con cookie HttpOnly/SameSite, contraseñas scrypt, acceso por usuario, límites básicos de intentos de acceso y protección de solicitudes de escritura entre orígenes.
 - Dictado **real del navegador**, si existe `SpeechRecognition`/`webkitSpeechRecognition`. Puede requerir permisos, conexión y servicios del navegador. En contextos no compatibles siempre queda texto. No se guarda audio en el backend. No se ha validado el micrófono con una persona hablando en esta entrega.
-- Extracción **basada en reglas**, no un LLM: reconoce etiquetas explícitas en ES/EN, propone cambios y muestra campos faltantes. Usa punto o `;` entre campos. No entiende toda conversación libre, negaciones complejas ni correcciones ambiguas. Corrige los campos manualmente si hace falta. No hay un agente de voz autónomo ni API de IA conectada todavía.
+- Extracción **basada en reglas**, no un LLM: reconoce etiquetas explícitas en ES/EN, propone cambios y muestra campos faltantes. Usa punto o `;` entre campos. No entiende toda conversación libre, negaciones complejas ni correcciones ambiguas. Corrige los campos manualmente si hace falta. El módulo Entrevista añade guía interactiva y un adaptador OpenAI real configurable; no se ha probado la conexión a un modelo por falta de credenciales.
 - Matching real desde la base de datos, con vocabulario bilingüe limitado y coincidencias literales. Considera complementariedad en ambas direcciones, necesidad compartida o afinidad, sin exigir las tres. Excluye otros eventos, el propio usuario, perfiles ocultos, bloqueos, falta de disponibilidad y ausencia de idioma conocido compartido. Idiomas reconocidos: ES, EN, PT, FR. No usa porcentajes inventados ni cercanía física.
 - Invitaciones, aceptación/rechazo, bloqueo y consentimiento de contacto. Las notificaciones son internas y requieren actualizar; no hay push, correo, chat, desbloqueo ni reenvío de una invitación rechazada en este MVP.
 - Interfaz responsive ES/EN. No se ha validado en dispositivos móviles físicos. Para voz en un móvil real hace falta un origen seguro accesible desde ese dispositivo; `localhost` del móvil no es el equipo servidor.
@@ -62,7 +66,7 @@ Pagos, Bluetooth, NFC y hardware están fuera del MVP.
 python3 -m unittest discover -s tests -v
 ```
 
-12 pruebas HTTP de integración, con base temporal aislada y puerto efímero: persistencia/login/logout, aislamiento de cuentas y eventos, confirmación y validación, extracción sin guardado, matching bilingüe y privacidad, filtros, cero resultados, perfiles demo, aceptación/rechazo y consentimiento revocable, acceso indebido, CSRF y conexiones opcionales. No modifican la base local. El sistema debe permitir abrir puertos en loopback.
+Suite de pruebas HTTP de integración (incluye las 12 originales y pruebas de entrevista/adaptadores), con base temporal aislada y puerto efímero: persistencia/login/logout, aislamiento de cuentas y eventos, confirmación y validación, extracción sin guardado, matching bilingüe y privacidad, filtros, cero resultados, perfiles demo, aceptación/rechazo y consentimiento revocable, acceso indebido, CSRF y conexiones opcionales. No modifican la base local. El sistema debe permitir abrir puertos en loopback.
 
 ## Arquitectura y colaboración
 
@@ -70,6 +74,11 @@ python3 -m unittest discover -s tests -v
 - `backend/db.py`: esquema SQLite y conexiones.
 - `backend/modules/events.py`: eventos y ejemplos explícitos.
 - `backend/modules/profiles.py`: perfil general y por evento, confirmación.
+- `backend/modules/interviews.py`: entrevista, notas, revisiones, confirmación y estado transitorio.
+- `backend/adapters/`: adaptadores OpenAI y SQLite/Supabase.
+- `backend/mcp_server.py`: puente MCP stdio autenticado y acotado.
+- `frontend/interview.js`, `frontend/speech.js`: entrevista y ciclo de voz separados.
+- `.agents/skills/voice-profile-interview/SKILL.md`: skill de desarrollo/operación; no ejecuta el runtime web.
 - `backend/modules/conversation.py`: adaptador de extracción reemplazable, contrato `extract(text, profile)`.
 - `backend/modules/matching.py`: vocabulario bilingüe, filtros y evidencia.
 - `backend/modules/connections.py`: invitaciones, respuestas, contacto y bloqueos.

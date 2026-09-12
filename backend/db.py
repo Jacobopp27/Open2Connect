@@ -20,6 +20,7 @@ def initialize():
           profile TEXT NOT NULL DEFAULT '{}', demo INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS sessions (
           token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS mcp_tokens (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), event_id TEXT NOT NULL, expires REAL NOT NULL, session_token TEXT NOT NULL REFERENCES sessions(token) ON DELETE CASCADE);
         CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, name TEXT NOT NULL, location TEXT NOT NULL, description TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS profiles (
           user_id TEXT REFERENCES users(id), event_id TEXT REFERENCES events(id), data TEXT NOT NULL,

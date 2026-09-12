@@ -6,6 +6,10 @@ def events():
         return [dict(r) for r in db.execute('SELECT * FROM events')]
 
 def seed_demo():
+    import os
+    from backend.modules.auth import Problem
+    if os.getenv('PROFILE_STORE', 'sqlite') != 'sqlite':
+        raise Problem('Los perfiles demo solo se crean en SQLite local. / Demo profiles are local SQLite only.',409)
     examples = [
       ('demo-ana', {'name':'Ana · DEMO','role':'Diseñadora de producto','experience':'5 años','sector':'Educación','interests':'IA, educación','languages':'Español, English'}, {'purpose':'Crear un prototipo educativo','problem':'Integrar un backend Python','help':'Python y APIs','priority':'high','outcome':'Prototipo funcional','skills':'UX, diseño, investigación','knowledge':'Educación','services':'Diseño de interfaces','resources':'Kit de diseño','availability':'available'}),
       ('demo-sam', {'name':'Sam · DEMO','role':'Backend engineer','experience':'4 years','sector':'Education','interests':'Artificial intelligence, education','languages':'English, Spanish'}, {'purpose':'Build an education prototype','problem':'Improve product design','help':'UX design','priority':'medium','outcome':'Test a prototype','skills':'Python, backend, APIs','knowledge':'Data, AI','services':'API development','resources':'Open source tools','availability':'limited'}),

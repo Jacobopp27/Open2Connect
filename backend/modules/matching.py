@@ -54,11 +54,14 @@ def recommendations(user, event):
         raise Problem('Confirma tu perfil primero. / Confirm your profile first.')
     if not available(own):
         return {'recommendations': [], 'reason': 'unavailable'}
+    from backend.adapters.profile_store import store
+    rows = store().participants(event)
     with connect() as db:
-        rows = db.execute('''SELECT u.id,u.profile,u.demo,p.data FROM users u JOIN profiles p ON p.user_id=u.id
-          WHERE p.event_id=? AND p.visible=1 AND u.id!=?
-          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=? AND b.target=u.id) OR (b.target=? AND b.user_id=u.id))''', (event, user['id'], user['id'], user['id'])).fetchall()
+        blocked = {r['target'] if r['user_id'] == user['id'] else r['user_id'] for r in db.execute('SELECT user_id,target FROM blocks WHERE user_id=? OR target=?', (user['id'],user['id']))}
+    rows = [r for r in rows if r['visible'] and r['id'] != user['id'] and r['id'] not in blocked]
     def group(p, keys):
+        if keys == need_keys and p.get('needs_status') == 'none': return ''
+        if keys == offer_keys and p.get('offers_status') == 'none': return ''
         return ' · '.join(p.get(k, '') for k in keys if p.get(k))
     need_keys = ['problem', 'help', 'outcome']
     offer_keys = ['skills', 'knowledge', 'services', 'resources']

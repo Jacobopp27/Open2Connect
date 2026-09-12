@@ -11,10 +11,11 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from backend.db import connect, initialize
 from backend.modules.auth import Problem, authenticate, current_user
-from backend.modules import profiles, conversation, matching, connections, notifications, events
+from backend.modules import profiles, conversation, matching, connections, notifications, events, interviews, mcp_access
 
 ROOT = Path(__file__).resolve().parent.parent / 'frontend'
 FEATURES = {'voice': os.getenv('ENABLE_VOICE','1') == '1', 'connections': os.getenv('ENABLE_CONNECTIONS','1') == '1', 'demo': os.getenv('ENABLE_DEMO','1') == '1'}
+COOKIE_NAME = os.getenv('SESSION_COOKIE_NAME','session')
 LIMITS = defaultdict(deque)
 LIMIT_LOCK = threading.Lock()
 
@@ -41,11 +42,11 @@ class Handler(BaseHTTPRequestHandler):
         cookies = SimpleCookie()
         try:
             cookies.load(self.headers.get('Cookie',''))
-            return cookies['session'].value if 'session' in cookies else ''
+            return cookies[COOKIE_NAME].value if COOKIE_NAME in cookies else ''
         except Exception:
             return ''
     def cookie(self, token, age=604800):
-        return f'session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={age}' + ('; Secure' if os.getenv('COOKIE_SECURE') == '1' else '')
+        return f'{COOKIE_NAME}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={age}' + ('; Secure' if os.getenv('COOKIE_SECURE') == '1' else '')
     def body(self):
         # A non-simple custom header plus no CORS prevents cross-site POSTs.
         if self.headers.get('X-Open2Connect') != '1' or self.headers.get('Content-Type','').split(';')[0] != 'application/json':
@@ -76,14 +77,16 @@ class Handler(BaseHTTPRequestHandler):
             if not path.startswith('/api/'):
                 if post:
                     raise Problem('Not found',404)
-                files = {'/':('index.html','text/html; charset=utf-8'), '/app.js':('app.js','text/javascript; charset=utf-8'), '/styles.css':('styles.css','text/css; charset=utf-8')}
+                files = {'/':('index.html','text/html; charset=utf-8'), '/app.js':('app.js','text/javascript; charset=utf-8'), '/styles.css':('styles.css','text/css; charset=utf-8'), '/speech.js':('speech.js','text/javascript; charset=utf-8'), '/interview.js':('interview.js','text/javascript; charset=utf-8')}
                 if path not in files:
                     raise Problem('Not found',404)
                 name, content_type = files[path]
                 return self.send(200,(ROOT/name).read_bytes(),content_type=content_type)
             payload = self.body() if post else {}
             if path == '/api/config' and not post:
-                return self.send(200,{'features':FEATURES,'extraction':'rules-v1'})
+                from backend.adapters.interview_ai import config_status
+                from backend.adapters.profile_store import status
+                return self.send(200,{'features':FEATURES,'extraction':'rules-v1','interview':config_status(),'storage':status()})
             if path == '/api/health' and not post:
                 return self.send(200,{'status':'ok'})
             if path in ('/api/register','/api/login') and post:
@@ -96,7 +99,26 @@ class Handler(BaseHTTPRequestHandler):
                         raise Problem('Demasiados intentos; espera un minuto. / Too many attempts; wait a minute.',429)
                     attempts.append(now)
                 return self.send(200,{'ok':True},self.cookie(authenticate(payload,path == '/api/register')))
-            user = current_user(self.token())
+            bearer = self.headers.get('Authorization','')
+            if bearer:
+                if not bearer.startswith('Bearer '): raise Problem('Invalid authorization',401)
+                user = mcp_access.authenticate(bearer[7:],path,post)
+                if 'event' in query and event != user['mcp_event']: raise Problem('Evento fuera del alcance MCP. / Event outside MCP scope.',403)
+                event = user['mcp_event']
+            else:
+                user = current_user(self.token())
+            if path == '/api/mcp/token' and post:
+                return self.send(200,mcp_access.mint(user,event,self.token()))
+            if path == '/api/mcp/revoke' and post:
+                return self.send(200,mcp_access.revoke(user))
+            if path == '/api/interviews/start' and post:
+                return self.send(200,interviews.start(user,event,payload))
+            if path == '/api/interviews/draft' and not post:
+                return self.send(200,interviews.get(user,query.get('id',[''])[0]))
+            if path.startswith('/api/interviews/') and post:
+                action = path.rsplit('/',1)[-1]
+                handler = {'turn':interviews.turn,'edit':interviews.edit_draft,'summary':interviews.summary,'confirm':interviews.confirm,'control':interviews.control}.get(action)
+                if handler: return self.send(200,handler(user,payload))
             if path == '/api/me' and not post:
                 return self.send(200,{'id':user['id'],'email':user['email']})
             if path == '/api/logout' and post:
