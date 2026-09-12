@@ -5,7 +5,7 @@ backend-only; application authorization, not RLS, scopes service-role operations
 """
 import json
 import os
-from backend.db import connect, provider
+from backend.db import connect
 from backend.modules.auth import Problem
 
 class SQLiteProfiles:
@@ -67,10 +67,6 @@ class SupabaseProfiles:
         return [{'id':r['owner_id'],'demo':identities[r['owner_id']],'profile':json.dumps((r.get('o2c_general_profiles') or {}).get('data',{})),'data':json.dumps(r['data']),'visible':r['visible']} for r in rows if r['owner_id'] in identities]
 
 def store():
-    if provider() == 'postgres':
-        repository = SQLiteProfiles()
-        repository.name = 'postgres'
-        return repository
     name=os.getenv('PROFILE_STORE','sqlite')
     if name=='sqlite': return SQLiteProfiles()
     if name=='supabase': return SupabaseProfiles()
@@ -80,9 +76,6 @@ def store():
     raise Problem('PROFILE_STORE inválido. / Invalid PROFILE_STORE.',503)
 
 def status():
-    if provider() == 'postgres':
-        from backend.adapters.postgres_profiles import configuration
-        return {'provider':'postgres','scope':'entire_application','configured':configuration()[2],'verified_live':False}
     name=os.getenv('PROFILE_STORE','sqlite')
     configured=name=='sqlite' or bool(os.getenv('SUPABASE_URL') and (os.getenv('SUPABASE_SECRET_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')))
     if name=='postgres':

@@ -2,39 +2,22 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#102e29">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0a1f1b">
+<!-- Página de referencia para el equipo de frontend: misma llave de kiosco que /kiosk (ver docs/KIOSK.md). -->
+<meta name="kiosk-key" content="__KIOSK_KEY__">
 <title>Entrevista de voz · Open2Connect</title>
-<link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/agent.css">
 </head>
-<body class="agent-page">
-<div id="app" class="layout">
-  <aside class="sidebar">
-    <a class="brand" href="/" aria-label="Open2Connect, inicio"><span class="brand-symbol" aria-hidden="true">↗</span>Open2Connect</a>
-    <div class="event-mini"><div class="eyebrow">TU ESPACIO PARA CONECTAR</div><strong>Una conversación.<br>Más posibilidades.</strong></div>
-    <nav aria-label="Principal">
-      <a class="nav-button" href="/"><span class="nav-icon" aria-hidden="true">◎</span>Mi perfil</a>
-      <a class="nav-button active" href="/agent" aria-current="page"><span class="nav-icon" aria-hidden="true">◉</span>Entrevista</a>
-    </nav>
-    <div class="bottom"><span>Personas reales.<br>Propósitos compartidos.</span><a href="/">← Volver a la aplicación</a></div>
-  </aside>
-  <main class="main">
-    <header class="topbar">
-      <span><span class="live-dot" aria-hidden="true"></span>Conecta con propósito</span>
-      <a class="back-link" href="/">← Volver a mi perfil</a>
-    </header>
-    <section class="hero">
-      <div><div class="eyebrow">ENTREVISTA / TU SIGUIENTE CONEXIÓN</div>
-        <h1>Hablemos de lo<br>que te mueve.</h1>
-        <p class="muted">Qué buscas, qué puedes aportar y con quién te gustaría construir. Empieza con una conversación.</p>
-      </div>
-      <span class="badge">A TU RITMO · POR VOZ</span>
-    </section>
-    <div class="agent-grid">
-      <section class="card dark voice-card" aria-labelledby="voice-title">
-        <div class="card-heading"><div><div class="eyebrow">TU ASISTENTE DE CONEXIONES</div><h2 id="voice-title">Un espacio para escucharte.</h2></div><span class="voice-symbol" aria-hidden="true">✳</span></div>
-        <div class="face-wrap">
+<body>
+<div id="app">
+  <header class="agent-header">
+    <a class="brand" href="/" aria-label="Volver a Open2Connect">← Open2Connect</a>
+    <button id="reset-btn" type="button">Nueva persona</button>
+  </header>
+
+  <main class="stage">
+    <div class="face-wrap">
       <svg id="face" viewBox="0 0 300 260" role="img" aria-label="Carita del agente de voz">
         <defs>
           <filter id="headShadow" x="-40%" y="-40%" width="180%" height="180%">
@@ -63,34 +46,34 @@
           </g>
         </g>
       </svg>
-        </div>
-        <div id="status" class="status-panel" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Elige cuándo comenzar.</span></div>
-        <div class="voice-controls">
-          <button id="start-btn" type="button">Iniciar entrevista de voz →</button>
-          <div class="ptt-wrap"><button id="ptt" type="button" aria-label="Mantén presionado para hablar"><span class="ptt-ring" aria-hidden="true"></span><span class="ptt-label">◉ &nbsp; Mantén presionado para hablar</span></button></div>
-          <p class="hint">Inicia la entrevista y mantén presionado el botón para hablar. Suéltalo para escuchar.</p>
-        </div>
-        <div class="voice-footer"><button id="reset-btn" class="ghost small" type="button">Reiniciar entrevista</button><span>Tú decides qué compartir.</span></div>
-      </section>
-      <aside class="conversation-column">
-        <section class="card conversation-card" aria-labelledby="conversation-title">
-          <div class="card-heading"><div><div class="eyebrow">PASO A PASO</div><h2 id="conversation-title">Tu conversación</h2></div><span class="circle" aria-hidden="true">↗</span></div>
-          <p class="muted conversation-intro">Aquí podrás seguir lo que tú y tu asistente van diciendo.</p>
-          <div id="transcript" role="log" aria-label="Transcripción de la entrevista" aria-live="polite"></div>
-          <details class="activity"><summary>Cambios y recomendaciones</summary><div id="tool-log" class="tool-log" aria-live="polite"></div></details>
-        </section>
-        <section class="card accent interview-start" aria-labelledby="before-title">
-          <div class="eyebrow">ANTES DE EMPEZAR</div><h3 id="before-title">Tu perfil, con tus palabras.</h3>
-          <p>Confirma primero tu perfil. Durante la entrevista podrás precisar lo que necesitas y lo que ofreces.</p>
-          <p class="hint">Al iniciar, tu audio y los datos que compartas se enviarán a OpenAI. Revisarás los cambios antes de guardarlos. La foto es opcional y requiere tu permiso.</p>
-          <a class="text-link" href="/">Prefiero completar mi perfil por escrito →</a>
-        </section>
-      </aside>
     </div>
-    <section id="qr-panel" class="card qr-panel" hidden><div class="eyebrow">CONTINÚA EN TU CELULAR</div><h2>Completa tu registro</h2><div id="qr-target"></div></section>
-    <section id="matches-panel" class="card matches-panel" hidden><div class="eyebrow">PERSONAS CON QUIENES CONECTAR</div><h2>Una conversación puede llevarte a otra.</h2><div id="matches-cards" class="matches-cards"></div></section>
+
+    <div id="status" class="status-panel" role="status" aria-live="polite">
+      <span id="status-text">Conectando…</span>
+    </div>
+
+    <div class="ptt-wrap">
+      <button id="ptt" type="button" aria-label="Mantén presionado para hablar">
+        <span class="ptt-ring"></span>
+        <span class="ptt-label">Mantén presionado<br>para hablar</span>
+      </button>
+    </div>
+
+    <section id="qr-panel" class="qr-panel" hidden>
+      <h2>Regístrate aquí y vuelve a la mesa</h2>
+      <div id="qr-target"></div>
+    </section>
+
+    <section id="matches-panel" class="matches-panel" hidden>
+      <div id="matches-cards" class="matches-cards"></div>
+    </section>
+
+    <div id="transcript" aria-live="polite"></div>
+    <div id="tool-log" class="tool-log" aria-live="polite"></div>
   </main>
 </div>
+<!-- Cámara para la seña por foto (backend/modules/kiosk.py → describir_apariencia): la imagen
+     se captura en este <video>/<canvas> y nunca se guarda ni se envía salvo con permiso verbal. -->
 <video id="cam" autoplay playsinline muted hidden></video>
 <canvas id="cam-canvas" hidden></canvas>
 <script src="/qr.js" defer></script>
