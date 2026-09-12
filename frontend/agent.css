@@ -231,3 +231,5 @@ button{font:inherit;cursor:pointer;border:0}
   .face-wrap{width:340px;margin:24px 0 20px}
   .stage{padding-top:24px}
 }
+
+.agent-header a.brand{text-decoration:none}.agent-header a.brand:focus-visible{outline:2px solid currentColor;outline-offset:5px}
