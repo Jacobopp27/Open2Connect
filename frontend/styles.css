@@ -7,3 +7,5 @@
 #realtime-caption {min-height:2.5rem;max-height:8rem;overflow:auto;color:#e1eee8}
 .realtime-panel .hint {color:#d3e5dd}
 .fields :disabled {opacity:.7;cursor:not-allowed}
+
+.interview-link{font-weight:650;text-decoration:none;border-radius:10px;padding:12px 18px}.interview-link:hover{background:#284b40;color:#fff}.interview-link:focus-visible,.interview-entry:focus-visible{outline:3px solid #89ad44;outline-offset:3px}.interview-entry{display:block;margin-bottom:22px;color:#315d37;font-weight:650}@media(max-width:720px){.interview-link{padding:7px 4px}}

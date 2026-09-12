@@ -127,3 +127,7 @@ La generación de estos documentos inspeccionó Git, módulos, rutas, configurac
 Pendientes: reconciliar los tests y el transporte de entrevista heredado con la decisión de producto; validar voz/cámara reales; resolver coherencia de perfiles remotos con kiosco/`yo`; definir autorización de `/yo` y del dispositivo presencial; asegurar persistencia de SQLite en despliegue. El kiosco sigue fuera del alcance de corrección solicitado previamente; documentar sus cambios nuevos no implica autorizar una reescritura.
 
 Registrar aquí cada cambio futuro con fecha, commit, petición, decisión, evidencia y pendientes, sin copiar datos personales ni secretos.
+
+## Actualización local: acceso a entrevistas
+
+Por petición del usuario, se añadió «Entrevista» al menú principal y un acceso desde registro/inicio de sesión. Ambos abren `/agent`; la cabecera del agente permite volver a `/`. Se conserva la entrevista web heredada oculta y no se cambian sus contratos ni el funcionamiento de voz del kiosco.
