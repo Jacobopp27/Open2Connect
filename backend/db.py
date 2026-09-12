@@ -2,15 +2,25 @@ import os
 import sqlite3
 from pathlib import Path
 
+from contextlib import contextmanager
+
 DB_PATH = os.environ.get('OPEN2CONNECT_DB', str(Path(__file__).resolve().parent.parent / 'data' / 'open2connect.db'))
 
+@contextmanager
 def connect():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
     db.execute('PRAGMA foreign_keys=ON')
     db.execute('PRAGMA busy_timeout=5000')
-    return db
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 def initialize():
     with connect() as db:
