@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#102e29">
+<!-- Llave de kiosco inyectada por el servidor al servir /kiosk (ver parche en docs/KIOSK.md). Vacía si KIOSK_KEY no está configurada. -->
+<meta name="kiosk-key" content="__KIOSK_KEY__">
+<title>Mesa 4 · Open2Connect</title>
+<link rel="stylesheet" href="/kiosk.css">
+</head>
+<body>
+<div id="app">
+  <header class="kiosk-header">
+    <span class="brand">Mesa 4 · Open2Connect</span>
+    <button id="reset-btn" type="button">Nueva persona</button>
+  </header>
+  <div id="status" role="status" aria-live="polite">Párate aquí y mantén presionado el botón para hablar.</div>
+  <div class="ptt-wrap">
+    <button id="ptt" type="button" aria-label="Mantén presionado para hablar">Mantén presionado<br>para hablar</button>
+  </div>
+  <div id="transcript" aria-live="polite"></div>
+  <div id="cards"></div>
+  <div id="qr" hidden></div>
+</div>
+<script src="/qr.js" defer></script>
+<script src="/realtime.js" defer></script>
+<script src="/kiosk.js" defer></script>
+</body>
+</html>
