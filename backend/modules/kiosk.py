@@ -279,9 +279,16 @@ def buscar_persona(nombre='', email='', event=EVENT):
         ratio = _mejor_ratio_tokens(tokens, name_tokens) if (tokens and name_tokens) else 0.0
         if not (is_email_match or is_substr_match or ratio >= 0.75):
             continue
-        score = ratio
+        # Prioridad: nombre completo exacto > consulta contenida en el nombre > todos los tokens
+        # presentes > similitud difusa (que nunca supera a una coincidencia literal; evita que
+        # "Mariana López" devuelva primero a "Ana Prueba" porque "ana" se parece a "mariana").
+        score = min(ratio, 0.89)  # difusa: confianza "media"
         if is_substr_match:
-            score = max(score, 0.95)
+            score = 0.95
+            if query in name_norm:
+                score = 0.97
+            if query == name_norm:
+                score = 0.99
         if is_email_match:
             score = 1.0
         confianza = 'alta' if (is_email_match or score >= 0.9) else 'media'
