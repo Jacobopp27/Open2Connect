@@ -1,5 +1,7 @@
 # Open2Connect — Spec Driven Development
 
+> **Actualización posterior: integración /agent + Supabase.** La petición actual reemplaza el alcance anterior: toda la app tiene una capa PostgreSQL preparada y `/agent` es la única pantalla de entrevista. El usuario decidió iniciar sin migrar datos. Se creó el esquema vacío `o2c_app` en Supabase y la instancia principal ya usa `DATABASE_PROVIDER=postgres`; los datos anteriores se conservan sin importar. Ver [estado, contratos y corte](docs/UNIFIED_DATABASE.md). Los apartados anteriores sobre SQLite obligatorio y kiosco pospuesto describen la base histórica.
+
 Versión 1, 2026-09-12. Base de implementación: `d584c14`. Contexto e historial: [index.md](index.md). Ejecución: [agents.md](agents.md). Método: [skills.md](skills.md).
 
 ## 1. Objetivo y alcance

@@ -23,6 +23,9 @@
       opts = opts || {};
       this.tokenUrl = opts.tokenUrl || '/api/kiosk/token';
       this.headers = opts.headers || {};
+      this.tokenBody = opts.tokenBody || {};
+      this.generation = 0;
+      this.calls = new Map();
       this.tools = opts.tools || {};
       this.onEvent = typeof opts.onEvent === 'function' ? opts.onEvent : () => {};
       this.pc = null;
@@ -53,19 +56,26 @@
 
     /** Token → RTCPeerConnection (mic apagado) → data channel → SDP a OpenAI. */
     async conectar() {
+      if (this.pc) this.cerrar();
+      const generation = ++this.generation;
       this._estado('conectando');
       try {
-        const resp = await fetch(this.tokenUrl, { method: 'POST', headers: this.headers, body: JSON.stringify({}) });
+        const resp = await fetch(this.tokenUrl, { method: 'POST', headers: this.headers, body: JSON.stringify(this.tokenBody) });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) throw new Error(data.error || 'No se pudo obtener el token de sesión.');
+        if (generation !== this.generation) return;
         const clientSecret = data.value;
         if (!clientSecret) throw new Error('Respuesta de token inválida.');
 
         const pc = new RTCPeerConnection();
         this.pc = pc;
+        pc.onconnectionstatechange = () => {
+          if (this.pc === pc && ['failed','disconnected'].includes(pc.connectionState)) { this.cerrar(); this._estado('error'); }
+        };
         pc.ontrack = (e) => this._wireRemoteAudio(e.streams[0]);
 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (generation !== this.generation) { stream.getTracks().forEach(t => t.stop()); return; }
         this.stream = stream;
         // El audio se cobra al entrar a la sesión: el micrófono va apagado y solo se enciende
         // mientras se mantiene presionado el botón (push-to-talk), por costo y por ruido de fondo.
@@ -86,11 +96,14 @@
         });
         if (!sdpResp.ok) throw new Error('No se pudo conectar con OpenAI Realtime (' + sdpResp.status + ').');
         const answerSdp = await sdpResp.text();
+        if (generation !== this.generation) return;
         await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
         document.addEventListener('pointerdown', this._resumeCtx, { once: true });
         document.addEventListener('keydown', this._resumeCtx, { once: true });
       } catch (err) {
+        if (generation !== this.generation) return;
+        this.cerrar();
         this._estado('error');
         throw err;
       }
@@ -176,10 +189,13 @@
             break;
         }
       });
-      dc.addEventListener('close', () => this._estado('inactivo'));
+      dc.addEventListener('close', () => { if (this.dc === dc) this.cerrar(); });
     }
 
     async _ejecutarHerramienta(evt) {
+      if (this.calls.has(evt.call_id)) return;
+      this.calls.set(evt.call_id, true);
+      const generation = this.generation;
       let args = {};
       try { args = JSON.parse(evt.arguments || '{}'); } catch (e) { /* argumentos vacíos o inválidos */ }
       const tool = this.tools[evt.name];
@@ -189,6 +205,7 @@
       } else {
         try { resultado = await tool(args); } catch (err) { resultado = { error: err.message }; }
       }
+      if (generation !== this.generation) return;
       this._emit('herramienta', { nombre: evt.name, args, resultado });
       // verificar: nombre exacto del evento/campo de salida de function call en la versión vigente de la API
       this._send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: evt.call_id, output: JSON.stringify(resultado) } });
@@ -224,9 +241,13 @@
     }
 
     cerrar() {
+      this.generation++;
+      this.calls.clear();
+      if (this.audioEl) { this.audioEl.pause(); this.audioEl.srcObject=null; this.audioEl=null; }
       if (this._amplitudTimer) { clearInterval(this._amplitudTimer); this._amplitudTimer = null; }
       if (this.audioCtx) { try { this.audioCtx.close(); } catch (e) { /* ya cerrado */ } this.audioCtx = null; }
-      if (this.dc) { try { this.dc.close(); } catch (e) { /* ya cerrado */ } }
+      const channel = this.dc; this.dc = null;
+      if (channel) { try { channel.close(); } catch (e) { /* ya cerrado */ } }
       if (this.pc) { try { this.pc.close(); } catch (e) { /* ya cerrado */ } }
       if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
       document.removeEventListener('pointerdown', this._resumeCtx);
@@ -238,4 +259,5 @@
   }
 
   global.O2CRealtime = O2CRealtime;
-})(window);
+  if (typeof module !== 'undefined') module.exports = O2CRealtime;
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -21,7 +21,7 @@ class AppTest(unittest.TestCase):
     def setUp(self):
         LIMITS.clear()
         with db.connect() as conn:
-            for table in ('notifications','invitations','blocks','profiles','sessions','users'):
+            for table in ('encuentros','checkins','notifications','invitations','blocks','profiles','sessions','users'):
                 conn.execute('DELETE FROM '+table)
         self.a=self.register('a@example.invalid'); self.b=self.register('b@example.invalid')
     def req(self,path,body=None,cookie='',headers=None):

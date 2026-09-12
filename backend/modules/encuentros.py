@@ -15,6 +15,7 @@ Tabla nueva `encuentros`: confirmación explícita ("ya nos conocimos") hecha po
 cualquiera de los dos asistentes desde su página personal.
 """
 import json
+import os
 import logging
 import threading
 import time
@@ -23,73 +24,39 @@ from backend.modules import ambiguous
 from backend.modules.kiosk import EVENT, NEED_FIELDS, OFFER_FIELDS, AFFINITY_FIELDS, _joined, _perfil_de
 from backend.modules.matching import terms
 
-with connect() as _db:
-    _db.execute('''CREATE TABLE IF NOT EXISTS encuentros (
-      user_a TEXT NOT NULL, user_b TEXT NOT NULL, event_id TEXT NOT NULL, confirmado_en REAL NOT NULL,
-      PRIMARY KEY(user_a,user_b,event_id))''')
-
-
 def _par(a, b):
     """Ordena el par para que (a,b) y (b,a) sean siempre la misma fila."""
     return (a, b) if a <= b else (b, a)
 
 
 def _matches_de(id, event):
-    """Copia de solo lectura del puntaje de kiosk.recomendar, contra todos los perfiles
-    del evento (no solo quienes ya hicieron check-in). Devuelve None si `id` no existe."""
+    from backend.modules.matching import recommendations
+    from backend.adapters.profile_store import store
+    from backend.modules.auth import Problem
+    own = store().get(id,event)
+    if not own.get('saved'): return None
+    matches = recommendations({'id':id},event)['recommendations']
     with connect() as db:
-        own_row = db.execute('''SELECT u.id,u.profile,p.data FROM users u
-          LEFT JOIN profiles p ON p.user_id=u.id AND p.event_id=? WHERE u.id=?''', (event, id)).fetchone()
-        if not own_row:
-            return None
-        rows = db.execute('''SELECT u.id,u.profile,p.data,c.checked_in_at,c.sena FROM users u
-          JOIN profiles p ON p.user_id=u.id AND p.event_id=?
-          LEFT JOIN checkins c ON c.user_id=u.id AND c.event_id=?
-          WHERE u.id!=? AND u.demo=0''', (event, event, id)).fetchall()
-
-    own_general, own_evento = _perfil_de(own_row)
-    own = {**own_general, **own_evento}
-    own_need = terms(_joined(own, NEED_FIELDS))
-    own_offer = terms(_joined(own, OFFER_FIELDS))
-    own_affinity = terms(_joined(own, AFFINITY_FIELDS))
-
-    candidatos = []
-    for row in rows:
-        general, evento = _perfil_de(row)
-        perfil = {**general, **evento}
-        need = terms(_joined(perfil, NEED_FIELDS))
-        offer = terms(_joined(perfil, OFFER_FIELDS))
-        affinity = terms(_joined(perfil, AFFINITY_FIELDS))
-        te_ayuda, ayudas = sorted(own_need & offer), sorted(own_offer & need)
-        necesidad_comun, interes_comun = sorted(own_need & need), sorted(own_affinity & affinity)
-        score = 3 * len(te_ayuda) + 3 * len(ayudas) + 2 * len(necesidad_comun) + len(interes_comun) + (3 if te_ayuda and ayudas else 0)
-        if score <= 0:
-            continue
-        nombre = general.get('name', '')
-        if te_ayuda:
-            razon = f"{nombre} puede ayudarte con {', '.join(te_ayuda)}."
-        elif ayudas:
-            razon = f"Tú puedes ayudar a {nombre} con {', '.join(ayudas)}."
-        elif necesidad_comun:
-            razon = f"Ambos buscan lo mismo: {', '.join(necesidad_comun)}."
-        else:
-            razon = f"Comparten interés en {', '.join(interes_comun)}."
-        candidatos.append({
-            'id': row['id'], 'name': nombre, 'role': general.get('role', ''), 'razon': razon,
-            'sena': row['sena'] or '', 'checked_in_at': row['checked_in_at'], '_score': score,
-        })
-
-    candidatos.sort(key=lambda c: (-c['_score'], c['name']))
-    for c in candidatos:
-        c.pop('_score')
-    return own_general, candidatos
+        arrivals={r['user_id']:dict(r) for r in db.execute('SELECT user_id,checked_in_at,sena FROM checkins WHERE event_id=?',(event,))}
+    candidates=[]
+    labels={'they_help':'Puede ayudarte con','you_help':'Puedes ayudarle con','shared_need':'Ambos buscan','affinity':'Comparten interés en'}
+    for match in matches:
+        person=match['person']
+        if person.get('demo'): continue
+        reason=match['reasons'][0]
+        arrival=arrivals.get(person['id'],{})
+        candidates.append({'id':person['id'],'name':person.get('name',''),'role':person.get('role',''),
+            'razon':labels[reason['kind']] + ' ' + ', '.join(reason['terms']) + '.',
+            'checked_in_at':arrival.get('checked_in_at'),'sena':arrival.get('sena','')})
+    return own,candidates
 
 
 def estado(user_id, event=EVENT):
     user_id = str(user_id or '')
     resultado = _matches_de(user_id, event) if user_id else None
     if resultado is None:
-        return {'error': 'no encontrado'}
+        from backend.modules.auth import Problem
+        raise Problem('Completa y confirma tu perfil primero.',404)
     own_general, candidatos = resultado
 
     with connect() as db:
@@ -140,26 +107,21 @@ def confirmar(user_id, otro_id, event=EVENT):
     user_id, otro_id = str(user_id or ''), str(otro_id or '')
     if not user_id or not otro_id or user_id == otro_id:
         return {'error': 'faltan ids'}
+    from backend.modules.auth import Problem
+    if otro_id not in {c['id'] for c in estado(user_id,event)['matches']}:
+        raise Problem('Participante no disponible en tus coincidencias.',404)
     a, b = _par(user_id, otro_id)
     with connect() as db:
         rows = db.execute('SELECT id,profile FROM users WHERE id IN (?,?)', (a, b)).fetchall()
         if len(rows) != 2:
-            return {'error': 'no encontrado'}
+            raise Problem('Participante no disponible.',404)
         nombres = {r['id']: (json.loads(r['profile']) if r['profile'] else {}).get('name', '') for r in rows}
-        db.execute('INSERT OR IGNORE INTO encuentros(user_a,user_b,event_id,confirmado_en) VALUES (?,?,?,?)',
+        inserted = db.execute('INSERT OR IGNORE INTO encuentros(user_a,user_b,event_id,confirmado_en) VALUES (?,?,?,?)',
                    (a, b, event, time.time()))
 
+    if not inserted.rowcount: return {'ok':True}
     nombre_a, nombre_b = nombres.get(a, ''), nombres.get(b, '')
+    if os.getenv('ENABLE_EXTERNAL_SYNC') != '1': return {'ok':True}
     threading.Thread(target=_marcar_conocidos_en_hoja, args=(nombre_a, nombre_b, event), daemon=True).start()
     ambiguous.avisar_staff(f"{nombre_a} y {nombre_b} se conocieron.")
     return {'ok': True}
-
-
-def handle(path, post, payload, query, event):
-    """Rutas de /yo: sin sesión de usuario — el id del asistente viaja en su QR
-    personal (token de 32 hex), igual que las rutas de kiosco no exigen sesión."""
-    if path == '/api/yo/estado' and not post:
-        return estado(str(query.get('id', [''])[0]), event)
-    if path == '/api/yo/confirmar' and post:
-        return confirmar(str(payload.get('id', '')), str(payload.get('otro', '')), event)
-    return None

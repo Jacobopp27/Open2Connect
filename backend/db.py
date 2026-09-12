@@ -4,7 +4,7 @@ from pathlib import Path
 
 DB_PATH = os.environ.get('OPEN2CONNECT_DB', str(Path(__file__).resolve().parent.parent / 'data' / 'open2connect.db'))
 
-def connect():
+def sqlite_connect():
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH)
     db.row_factory = sqlite3.Row
@@ -12,7 +12,25 @@ def connect():
     db.execute('PRAGMA busy_timeout=5000')
     return db
 
+def provider():
+    return os.getenv('DATABASE_PROVIDER', 'sqlite')
+
+
+def connect():
+    if provider() == 'postgres':
+        from backend.adapters.app_database import PostgresDatabase
+        return PostgresDatabase()
+    if provider() != 'sqlite':
+        raise RuntimeError('DATABASE_PROVIDER must be sqlite or postgres')
+    return sqlite_connect()
+
+
 def initialize():
+    if provider() == 'postgres':
+        # Schema changes are explicit migrations, never startup side effects.
+        with connect() as db:
+            db.execute('SELECT id FROM events LIMIT 1')
+        return
     with connect() as db:
         db.executescript('''
         CREATE TABLE IF NOT EXISTS users (
@@ -33,5 +51,13 @@ def initialize():
           user_id TEXT REFERENCES users(id), target TEXT REFERENCES users(id), PRIMARY KEY(user_id,target));
         CREATE TABLE IF NOT EXISTS notifications (
           id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), message TEXT NOT NULL, created REAL NOT NULL);
+
+CREATE TABLE IF NOT EXISTS checkins (
+ user_id TEXT NOT NULL REFERENCES users(id), event_id TEXT NOT NULL REFERENCES events(id),
+ checked_in_at REAL NOT NULL, sena TEXT NOT NULL, PRIMARY KEY(user_id,event_id));
+CREATE TABLE IF NOT EXISTS encuentros (
+ user_a TEXT NOT NULL REFERENCES users(id), user_b TEXT NOT NULL REFERENCES users(id),
+ event_id TEXT NOT NULL REFERENCES events(id), confirmado_en REAL NOT NULL,
+ PRIMARY KEY(user_a,user_b,event_id));
         ''')
         db.execute('INSERT OR IGNORE INTO events VALUES (?,?,?,?)', ('medellin-2026', 'Agents Everywhere · Medellín', 'Medellín, Colombia', '12 septiembre 2026 · Hackatón y conexiones con propósito'))

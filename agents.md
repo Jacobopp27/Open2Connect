@@ -1,5 +1,7 @@
 # Open2Connect — instrucciones para agentes y reconstrucción
 
+> **Actualización posterior: integración /agent + Supabase.** La petición actual reemplaza el alcance anterior: toda la app tiene una capa PostgreSQL preparada y `/agent` es la única pantalla de entrevista. El usuario decidió iniciar sin migrar datos. Se creó el esquema vacío `o2c_app` en Supabase y la instancia principal ya usa `DATABASE_PROVIDER=postgres`; los datos anteriores se conservan sin importar. Ver [estado, contratos y corte](docs/UNIFIED_DATABASE.md). Los apartados anteriores sobre SQLite obligatorio y kiosco pospuesto describen la base histórica.
+
 Base documental: `d584c14`, 2026-09-12. Este archivo se entrega en minúsculas por petición del usuario. Herramientas que solo descubren `AGENTS.md` deben cargarlo explícitamente; no asumir descubrimiento automático ni crear una segunda copia divergente.
 
 ## 1. Lectura y autoridad
