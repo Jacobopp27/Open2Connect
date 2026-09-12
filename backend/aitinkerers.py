@@ -6,7 +6,7 @@ API_KEY = "sk_TU_LLAVE_AQUI"
 BASE_URL = "https://aitinkerers.org/api/agents/v1"
 
 headers = {
-    "Authorization": f"Bearer {API_KEY}",
+    "Authorization": f"Bearer {API_KEY_aitinkerers}",
     "Content-Type": "application/json"
 }
 
