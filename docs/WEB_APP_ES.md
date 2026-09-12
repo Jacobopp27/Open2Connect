@@ -14,7 +14,7 @@ Abre **http://127.0.0.1:8000**. No requiere paquetes ni claves API. La base se c
 
 ## Entrevista por voz y nuevas integraciones
 
-Abre **Entrevista / Interview** para conversar una pregunta a la vez, dictar o escribir, pausar/reanudar, corregir notas y confirmar el perfil. La guía local funciona sin claves; el adaptador real de OpenAI requiere configuración y consentimiento. Se incluyen un puente MCP autenticado y un repositorio de perfiles Supabase configurable. Ninguna integración remota está activada por defecto. [Configuración, pruebas y límites](docs/INTERVIEW.md).
+Abre **Entrevista / Interview** para conversar una pregunta a la vez, dictar o escribir, pausar/reanudar, corregir notas y confirmar el perfil. La guía local funciona sin claves; el adaptador real de OpenAI requiere configuración y consentimiento. Se incluyen un puente MCP autenticado y un repositorio de perfiles Supabase configurable. Ninguna integración remota está activada por defecto. [Configuración, pruebas y límites](INTERVIEW.md).
 
 ## Demo interactiva
 
@@ -90,4 +90,4 @@ La API JSON usa cookie de sesión. Las escrituras requieren `Content-Type: appli
 
 Variables: `HOST`, `PORT`, `OPEN2CONNECT_DB`, `ENABLE_VOICE`, `ENABLE_CONNECTIONS`, `ENABLE_DEMO`, `COOKIE_SECURE`, `APP_ORIGIN`. Exportarlas desde el shell; `.env` no se carga automáticamente. Con `ENABLE_VOICE=0` queda texto; con `ENABLE_CONNECTIONS=0` queda búsqueda.
 
-Plan del equipo y gate local antes de producción: [docs/TEAM_PLAN.md](docs/TEAM_PLAN.md). Guion de presentación: [docs/DEMO.md](docs/DEMO.md). Preparación de despliegue: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Plan del equipo y gate local antes de producción: [docs/TEAM_PLAN.md](team-notes/TEAM_PLAN.md). Guion de presentación: [docs/DEMO.md](DEMO.md). Preparación de despliegue: [docs/DEPLOYMENT.md](DEPLOYMENT.md).
