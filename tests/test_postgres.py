@@ -39,6 +39,11 @@ class PostgresTest(unittest.TestCase):
                 with connection():pass
             self.assertEqual(raised.exception.status,503)
     def test_failures_redact_driver_credentials(self):
+        try:
+            import psycopg
+        except ImportError:
+            self.skipTest("psycopg not installed")
+            return
         with patch('backend.adapters.postgres_profiles.configuration',return_value=('private-dsn','ca',True)), patch('psycopg.connect',side_effect=RuntimeError('private-dsn password')):
             with self.assertRaises(Problem) as raised:
                 with connection():pass
