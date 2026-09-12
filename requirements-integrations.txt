@@ -1,0 +1,4 @@
+# Optional. Local guided interview and SQLite run on the Python standard library.
+openai>=2,<3
+mcp>=2,<3
+supabase>=2,<3

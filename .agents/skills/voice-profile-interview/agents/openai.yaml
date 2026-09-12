@@ -1,0 +1,4 @@
+interface:
+  display_name: "Voice Profile Interview"
+  short_description: "Build voice interviews with scoped notes and storage"
+  default_prompt: "Use $voice-profile-interview to extend and verify the Open2Connect participant interview."

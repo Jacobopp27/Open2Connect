@@ -5,19 +5,23 @@ from backend.db import connect
 from backend.modules.auth import Problem
 from backend.modules.notifications import notify
 from backend.modules.matching import public_profile
+from backend.adapters.profile_store import store
 
 def blocked(db, a, b):
     return db.execute('SELECT 1 FROM blocks WHERE (user_id=? AND target=?) OR (user_id=? AND target=?)', (a,b,b,a)).fetchone()
 
 def invite(user, event, target):
+    own = store().get(user['id'],event)
+    other_profile = store().get(target,event)
     with connect() as db:
-        own = db.execute('SELECT data FROM profiles WHERE user_id=? AND event_id=?', (user['id'],event)).fetchone()
-        other = db.execute('SELECT p.*,u.demo FROM profiles p JOIN users u ON u.id=p.user_id WHERE p.user_id=? AND p.event_id=?', (target,event)).fetchone()
-        if target == user['id'] or not own or not other or not other['visible'] or blocked(db,user['id'],target):
+        db.execute('BEGIN IMMEDIATE')
+        other_user = db.execute('SELECT demo FROM users WHERE id=?',(target,)).fetchone()
+        other = {**other_profile, 'demo':other_user['demo']} if other_user and other_profile['saved'] else None
+        if target == user['id'] or not own['saved'] or not other or not other['visible'] or blocked(db,user['id'],target):
             raise Problem('Participante no disponible. / Participant unavailable.', 404)
         if other['demo']:
             raise Problem('Perfil ficticio de demostración. Usa dos cuentas reales para probar invitaciones. / Demo profile: use two real accounts to test invitations.')
-        if json.loads(other['data']).get('availability') == 'unavailable' or json.loads(own['data']).get('availability') == 'unavailable':
+        if other.get('availability') == 'unavailable' or own.get('availability') == 'unavailable':
             raise Problem('Participante sin disponibilidad. / Participant unavailable.', 409)
         prior = db.execute('SELECT * FROM invitations WHERE event_id=? AND ((sender=? AND recipient=?) OR (sender=? AND recipient=?))', (event,user['id'],target,target,user['id'])).fetchone()
         if prior:
@@ -42,13 +46,14 @@ def respond(user, iid, action):
 
 def connections(user,event):
     result = []
+    participant_rows = {r['id']:r for r in store().participants(event)}
     with connect() as db:
         rows = db.execute('SELECT * FROM invitations WHERE event_id=? AND (sender=? OR recipient=?) ORDER BY created DESC', (event,user['id'],user['id'])).fetchall()
         for row in rows:
             target = row['recipient'] if row['sender'] == user['id'] else row['sender']
             if blocked(db,user['id'],target):
                 continue
-            person = db.execute('SELECT u.id,u.profile,u.demo,p.data FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.id=? AND p.event_id=?', (target,event)).fetchone()
+            person = participant_rows.get(target)
             if not person:
                 continue
             p = public_profile(person)
