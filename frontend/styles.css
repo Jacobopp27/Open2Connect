@@ -5,6 +5,7 @@
 .voice-orb {font-size:3rem;line-height:1;text-align:center;color:#b9f09d}
 #realtime-status {font-weight:700;text-align:center}
 #realtime-caption {min-height:2.5rem;max-height:8rem;overflow:auto;color:#e1eee8}
+.profile-content{max-width:900px}
 .realtime-panel .hint {color:#d3e5dd}
 .fields :disabled {opacity:.7;cursor:not-allowed}
 
