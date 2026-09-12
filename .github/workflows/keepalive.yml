@@ -1,0 +1,11 @@
+# Mantiene despierto el servicio gratuito de Render durante el evento (se duerme tras ~15 min sin tráfico).
+name: keepalive
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --max-time 60 https://open2connect.onrender.com/api/health || true
