@@ -2,8 +2,7 @@
 
 WebRTC directo navegador → OpenAI Realtime. El servidor solo crea el token
 efímero (`backend/modules/kiosk.py`) y ejecuta las tools; el audio nunca pasa
-por este backend. Requiere aplicar `docs/server.py.suggested.patch` a
-`backend/server.py` (no aplicado; lo mantiene otro compañero).
+por este backend. Las rutas `/api/kiosk/*` ya están integradas en `backend/server.py`.
 
 ## Variables de entorno
 
@@ -19,11 +18,10 @@ por este backend. Requiere aplicar `docs/server.py.suggested.patch` a
 
 ## Cómo correrlo
 
-1. Aplicar el parche: `git apply docs/server.py.suggested.patch` (o a mano).
-2. `export OPENAI_API_KEY=... KIOSK_KEY=... REGISTER_URL=https://tu-app/`
-3. `python3 -m backend.server` y abrir `http://localhost:8000/kiosk`.
+1. `export OPENAI_API_KEY=... KIOSK_KEY=... REGISTER_URL=https://tu-app/`
+2. `python3 -m backend.server` y abrir `http://localhost:8000/agent` (cara robótica) o `/kiosk` (versión de referencia).
 
-## CSP requerida (ya incluida en el parche)
+## CSP requerida (ya incluida en `backend/server.py`)
 
 `connect-src 'self' https://api.openai.com; media-src 'self' blob:;`
 (`script-src 'self'` se mantiene: todo el JS del kiosco es local, sin CDN).

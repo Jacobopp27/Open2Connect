@@ -1,93 +1,161 @@
+<div align="center">
+
 # Open2Connect
 
-Aplicación local interactiva para conectar participantes de hackatones y eventos LATAM: quién eres, qué necesitas y qué puedes aportar. Interfaz en español/inglés, JavaScript sin dependencias y backend Python modular con SQLite.
+**An AI check-in agent that turns event registration into the moment connections start.**
 
-## Arranque
+Built in one day at the AI Tinkerers **Agents, Everywhere** hackathon · Medellín · September 12, 2026
 
-Requiere Python 3.10+ con SQLite. Desde la raíz del repositorio:
+[Live demo](https://open2connect.onrender.com) · [Voice check-in kiosk](https://open2connect.onrender.com/agent) · [Video (46 s)](https://youtu.be/PICCCs5HuuU) · [Submission text](docs/SUBMISSION.md)
 
-```sh
+</div>
+
+---
+
+## The problem
+
+At a meetup or hackathon nobody knows who they should be talking to. Registration is a dead form, people arrive, sit with the friends they came with and leave without the one conversation they came for. Organizers have no live picture of who is actually in the room.
+
+## What Open2Connect does
+
+| Step | Where | What happens |
+| --- | --- | --- |
+| **1. Sign up** | Web app (`/`) | You state what you need, what you offer, your interests and the problem you bring. A background agent enriches your profile against a community database and, only with your consent, public information via Exa. |
+| **2. Voice check-in** | Kiosk at the door (`/agent`) | A robot face greets you by voice (OpenAI Realtime API). It confirms your name, checks you in and, with permission, looks at the camera once and keeps a short note of how to spot you ("black shirt, green cap"). The image is discarded. It ends by showing a QR to your personal page. |
+| **3. Live matching** | Your phone (`/yo/<id>`) | Matches are computed **only among people already checked in**. Complementarity (what you need vs. what someone offers) weighs more than shared interests. Each match comes with a one-line reason, minutes since arrival and how to spot the person. When a relevant person arrives, your phone buzzes: *"your match just arrived"*. A **We met** button closes the loop. |
+| **4. Staff view** | Ambiguous AI workspace | The agent, **Mesa 4**, is provisioned as a real member of the organizer's workspace. It creates the CRM contact on sign-up, posts arrivals to the staff channel, fills a sheet of attendees and connections, marks "met" and can assign follow-up tasks. |
+
+Why an agent in this environment beats a chatbot: a standalone chatbot cannot see who is physically in the room, cannot describe how someone is dressed and cannot write into the organizer's tools. Presence, arrival time and appearance are what make a recommendation actionable in the next five minutes instead of after the event.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Venue
+    K[Kiosk /agent<br/>robot face · mic · camera]
+    P[Attendee phone /yo/id]
+    W[Web sign-up /]
+  end
+  subgraph Server["Python stdlib HTTP server + SQLite (Render)"]
+    S[server.py<br/>auth · CSP · rate limits]
+    KI[modules/kiosk.py<br/>tools: find · confirm · check-in · recommend · QR · appearance]
+    EN[modules/encuentros.py<br/>live matching]
+    PF[modules/perfilador.py<br/>community profiling]
+    EX[modules/enriquecedor.py<br/>consent-gated Exa]
+    AM[modules/ambiguous.py<br/>agent "Mesa 4"]
+  end
+  O[(OpenAI Realtime<br/>WebRTC · gpt-realtime)]
+  V[(OpenAI vision)]
+  SB[(Supabase<br/>community schema)]
+  XA[(Exa API)]
+  AA[(Ambiguous AI<br/>CRM · channel · sheet · tasks)]
+
+  K -- ephemeral token --> S
+  K <-- audio + data channel --> O
+  O -- function calls --> K -- /api/kiosk/* --> KI
+  KI --> V
+  KI --> AM --> AA
+  W --> S --> PF --> SB
+  PF --> EX --> XA
+  PF --> AM
+  P -- polls /api/yo/estado --> EN
+```
+
+**Voice pipeline.** The browser talks to OpenAI Realtime directly over WebRTC; the server only mints ephemeral client secrets and executes tools. Push-to-talk, Spanish input transcription with a name-biased prompt, fuzzy name matching and an explicit name-confirmation step handle noisy rooms. The mic is muted between presses.
+
+**Matching.** Complementarity (needs ↔ offers) weight 3 (+3 if mutual), shared problem 2, shared interests 1. Only checked-in, non-demo profiles are considered.
+
+**Ambiguous AI.** All writes are best-effort background threads so the kiosk never blocks. Without `AMBIGUOUS_AGENT_KEY` the module logs locally and the app keeps working.
+
+**Security baseline.** Same-origin checks (Origin vs. host), `SameSite=Strict` cookies, strict CSP (`connect-src` limited to the app and `api.openai.com`), per-route body limits (2 MB only for the camera frame), rate limits on auth, consent gates for camera and web enrichment.
+
+## Run it locally
+
+Requires Python 3.10+ (standard library only for the core app).
+
+```bash
 python3 -m backend.server
 ```
 
-Abre **http://127.0.0.1:8000**. No requiere paquetes ni claves API. La base se crea automáticamente en `data/open2connect.db` y el perfil confirmado persiste al recargar o volver a iniciar sesión. Detén el servidor con Ctrl+C. Reinícialo después de modificar código Python; el frontend se actualiza al recargar.
+Open http://127.0.0.1:8000. The database is created at `data/open2connect.db`.
 
-## Entrevista por voz y nuevas integraciones
+To enable the voice kiosk and integrations, export the variables from [.env.example](.env.example) (at minimum `OPENAI_API_KEY`) before starting:
 
-Abre **Entrevista / Interview** para conversar una pregunta a la vez, dictar o escribir, pausar/reanudar, corregir notas y confirmar el perfil. La guía local funciona sin claves; el adaptador real de OpenAI requiere configuración y consentimiento. Se incluyen un puente MCP autenticado y un repositorio de perfiles Supabase configurable. Ninguna integración remota está activada por defecto. [Configuración, pruebas y límites](docs/INTERVIEW.md).
-
-## Demo interactiva
-
-1. Crea una cuenta local con un correo de prueba y una contraseña de al menos 10 caracteres. Para pruebas, utiliza direcciones ficticias `@example.invalid`.
-2. En **Mi perfil**, completa el formulario o pega el texto de ejemplo siguiente en **Escribe o corrige tu dictado** y pulsa **Organizar borrador**.
-3. Revisa todos los campos, pulsa **Revisar mi resumen** y después **Confirmo y guardo mi perfil**. La extracción nunca guarda por sí sola.
-4. En **Descubrir**, pulsa **Añadir 3 perfiles ficticios de demo**. Verás hasta tres recomendaciones sustentadas en datos de SQLite. Estos perfiles están marcados DEMO y no aceptan invitaciones.
-5. Para probar una conexión real entre dos cuentas controladas por ti, crea una segunda cuenta en una ventana privada. Usa el perfil complementario de abajo, confirma ambos perfiles, envía una invitación y acéptala desde **Conexiones** en la segunda sesión. Pulsa **Actualizar** en la primera.
-6. El contacto aparece solo después de aceptar y si su dueño marcó el consentimiento para compartirlo. La invitación inicial constituye el consentimiento del emisor; la aceptación, el del receptor. Rechazar mantiene el contacto privado.
-
-Ejemplo A, persona ficticia:
-
-```text
-Nombre: Alex DEMO; rol: Desarrollador backend; experiencia: 3 años; sector: Educación; intereses: IA y educación; idiomas: Español, English; propósito: Crear un prototipo educativo; problema: Necesito diseño UX; necesito: Diseño UX; prioridad: alta; resultado: Prototipo validado; ofrezco: Python y APIs; conocimiento: Backend; servicios: Desarrollo de APIs; recursos: Herramientas de código abierto; disponibilidad: disponible; contacto: alex@example.invalid
+```bash
+set -a; source .env.local; set +a; python3 -m backend.server
 ```
 
-Ejemplo B, persona ficticia complementaria (selecciona EN si vas a dictarlo):
+Optional dependencies for the interview adapter, MCP bridge and Supabase profile store:
 
-```text
-Name: Bea DEMO; role: Product designer; experience: 4 years; sector: Education; interests: AI and education; languages: English, Spanish; purpose: Build an education prototype; problem: I need a Python backend; I need: Python APIs; priority: high; outcome: Working Python API; I offer: UX design; knowledge: User research; services: Interface design; resources: Design kit; availability: available; contact: bea@example.invalid
+```bash
+pip install -r requirements-integrations.txt
 ```
 
-Puedes tener dos sesiones aisladas también usando `http://127.0.0.1:8000` y `http://localhost:8000` en el mismo equipo. Usa consistentemente cada dirección; sus cookies son distintas.
+### Demo data
 
-Para repetir desde cero **sin borrar datos existentes**, arranca otra base con un nombre nuevo y otro puerto:
+The hosted demo runs on Render's free tier, whose disk is ephemeral: every deploy wipes SQLite. Re-seed four demo attendees (three already checked in) with:
 
-```sh
-OPEN2CONNECT_DB=data/demo-ensayo-02.db PORT=8001 python3 -m backend.server
+```bash
+python3 scripts/seed_demo.py https://open2connect.onrender.com
 ```
 
-No se crean participantes de manera silenciosa. Puedes indicar explícitamente que no tienes necesidades u ofertas; no es obligatorio tener ambas. El botón DEMO añade los mismos tres perfiles una sola vez y conserva cualquier cuenta existente.
+Demo password for the seeded accounts: `PruebaHackaton2026!` (emails end in `@example.invalid`).
 
-## Qué funciona y qué está limitado
+### Tests
 
-- Perfiles generales reutilizables; propósito, necesidades, ofertas, disponibilidad y contacto separados por evento.
-- Sesiones con cookie HttpOnly/SameSite, contraseñas scrypt, acceso por usuario, límites básicos de intentos de acceso y protección de solicitudes de escritura entre orígenes.
-- Dictado **real del navegador**, si existe `SpeechRecognition`/`webkitSpeechRecognition`. Puede requerir permisos, conexión y servicios del navegador. En contextos no compatibles siempre queda texto. No se guarda audio en el backend. No se ha validado el micrófono con una persona hablando en esta entrega.
-- Extracción **basada en reglas**, no un LLM: reconoce etiquetas explícitas en ES/EN, propone cambios y muestra campos faltantes. Usa punto o `;` entre campos. No entiende toda conversación libre, negaciones complejas ni correcciones ambiguas. Corrige los campos manualmente si hace falta. El módulo Entrevista añade guía interactiva y un adaptador OpenAI real configurable; no se ha probado la conexión a un modelo por falta de credenciales.
-- Matching real desde la base de datos, con vocabulario bilingüe limitado y coincidencias literales. Considera complementariedad en ambas direcciones, necesidad compartida o afinidad, sin exigir las tres. Excluye otros eventos, el propio usuario, perfiles ocultos, bloqueos, falta de disponibilidad y ausencia de idioma conocido compartido. Idiomas reconocidos: ES, EN, PT, FR. No usa porcentajes inventados ni cercanía física.
-- Invitaciones, aceptación/rechazo, bloqueo y consentimiento de contacto. Las notificaciones son internas y requieren actualizar; no hay push, correo, chat, desbloqueo ni reenvío de una invitación rechazada en este MVP.
-- Interfaz responsive ES/EN. No se ha validado en dispositivos móviles físicos. Para voz en un móvil real hace falta un origen seguro accesible desde ese dispositivo; `localhost` del móvil no es el equipo servidor.
-- El registro es abierto para demo: no verifica email, no recupera contraseñas y no valida entradas privadas a eventos. No es una versión de producción endurecida.
-
-Pagos, Bluetooth, NFC y hardware están fuera del MVP.
-
-## Pruebas
-
-```sh
+```bash
 python3 -m unittest discover -s tests -v
 ```
 
-Suite de pruebas HTTP de integración (incluye las 12 originales y pruebas de entrevista/adaptadores), con base temporal aislada y puerto efímero: persistencia/login/logout, aislamiento de cuentas y eventos, confirmación y validación, extracción sin guardado, matching bilingüe y privacidad, filtros, cero resultados, perfiles demo, aceptación/rechazo y consentimiento revocable, acceso indebido, CSRF y conexiones opcionales. No modifican la base local. El sistema debe permitir abrir puertos en loopback.
+Two adapter tests need optional packages (`psycopg`, `openai`) and are expected to error without them.
 
-## Arquitectura y colaboración
+## Routes
 
-- `backend/server.py`: rutas HTTP, validación de transporte, configuración y archivos estáticos.
-- `backend/db.py`: esquema SQLite y conexiones.
-- `backend/modules/events.py`: eventos y ejemplos explícitos.
-- `backend/modules/profiles.py`: perfil general y por evento, confirmación.
-- `backend/modules/interviews.py`: entrevista, notas, revisiones, confirmación y estado transitorio.
-- `backend/adapters/`: adaptadores OpenAI y SQLite/Supabase.
-- `backend/mcp_server.py`: puente MCP stdio autenticado y acotado.
-- `frontend/interview.js`, `frontend/speech.js`: entrevista y ciclo de voz separados.
-- `.agents/skills/voice-profile-interview/SKILL.md`: skill de desarrollo/operación; no ejecuta el runtime web.
-- `backend/modules/conversation.py`: adaptador de extracción reemplazable, contrato `extract(text, profile)`.
-- `backend/modules/matching.py`: vocabulario bilingüe, filtros y evidencia.
-- `backend/modules/connections.py`: invitaciones, respuestas, contacto y bloqueos.
-- `backend/modules/notifications.py`: notificaciones internas.
-- `backend/modules/auth.py`: autenticación y sesiones.
-- `frontend/app.js`, `frontend/styles.css`: UI y adaptador de voz del navegador.
+| Route | Purpose |
+| --- | --- |
+| `/` | Web app: sign-up, profile, discover, connections (ES/EN) |
+| `/agent` | On-site voice check-in kiosk with the robot face |
+| `/yo/<id>` | Attendee's personal page with live matches and arrival alerts |
+| `POST /api/kiosk/{token,buscar,confirmar,checkin,recomendar,qr,apariencia}` | Tools called by the voice agent (optionally protected by `KIOSK_KEY`) |
+| `GET /api/yo/estado`, `POST /api/yo/confirmar` | Live matches and "we met" confirmation |
+| `GET /api/health` | Health check used by Render and the keep-alive workflow |
 
-La API JSON usa cookie de sesión. Las escrituras requieren `Content-Type: application/json` y `X-Open2Connect: 1`. Rutas principales: `/api/register`, `/api/login`, `/api/me`, `/api/events`, `/api/profile?event=medellin-2026`, `/api/conversation`, `/api/recommendations`, `/api/connections`, `/api/connections/invite`, `/api/connections/respond`, `/api/notifications`, `/api/block`. El evento por defecto es `medellin-2026`.
+## Deploy
 
-Variables: `HOST`, `PORT`, `OPEN2CONNECT_DB`, `ENABLE_VOICE`, `ENABLE_CONNECTIONS`, `ENABLE_DEMO`, `COOKIE_SECURE`, `APP_ORIGIN`. Exportarlas desde el shell; `.env` no se carga automáticamente. Con `ENABLE_VOICE=0` queda texto; con `ENABLE_CONNECTIONS=0` queda búsqueda.
+`render.yaml` is a Render Blueprint (free plan). Secrets are set in the Render dashboard. See [docs/DEPLOY_RENDER.md](docs/DEPLOY_RENDER.md). A GitHub Actions cron ([.github/workflows/keepalive.yml](.github/workflows/keepalive.yml)) pings the health endpoint so the free instance stays warm during the event.
 
-Plan del equipo y gate local antes de producción: [docs/TEAM_PLAN.md](docs/TEAM_PLAN.md). Guion de presentación: [docs/DEMO.md](docs/DEMO.md). Preparación de despliegue: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+## Repository map
+
+```
+backend/            stdlib HTTP server, SQLite, modules and adapters
+  modules/kiosk.py        voice agent tools and Realtime token
+  modules/encuentros.py   live matching and personal page API
+  modules/perfilador.py   community profiling (Supabase)
+  modules/enriquecedor.py consent-gated public enrichment (Exa)
+  modules/ambiguous.py    Ambiguous AI agent "Mesa 4"
+frontend/           vanilla JS: app, agent (robot face), personal page, realtime.js client
+db/                 SQL seed with 40 fictional community profiles
+scripts/            ambiguous_setup.py (provision agent, sheet, channel) · seed_demo.py
+video/              HyperFrames project for the demo video
+docs/               deployment, kiosk, realtime client, submission, video script
+```
+
+More docs: [docs/KIOSK.md](docs/KIOSK.md) · [docs/REALTIME_FRONT.md](docs/REALTIME_FRONT.md) · [docs/WEB_APP_ES.md](docs/WEB_APP_ES.md) (original web-app guide, Spanish) · [docs/team-notes/](docs/team-notes/)
+
+## What is real and what is simulated
+
+- The community database is **fictional** (40 generated profiles). We did not scrape the AI Tinkerers platform, following its rules.
+- Web enrichment via Exa runs only with explicit consent and one person at a time.
+- Proximity alerts between phones (Bluetooth) are on the roadmap, not implemented.
+
+## Team
+
+- **Jacobo Posada** ([@Jacobopp27](https://github.com/Jacobopp27)) — architecture, voice check-in agent, matching, Ambiguous AI integration, profiling and enrichment, deployment, video
+- **Juan Fernando Villa** ([@juanfdovilla](https://github.com/juanfdovilla)) — community data exploration, AI Tinkerers API cross-search, profiling inputs and on-site testing
+- **Luis Miguel Saldarriaga** — web application (sign-up, profiles, discovery, connections), interview adapter, MCP bridge, Supabase store and tests
+
+Sponsors and tools we used: OpenAI (Realtime API, vision), Ambiguous AI, Exa, Supabase, Render.
+
+## License
+
+[MIT](LICENSE)
