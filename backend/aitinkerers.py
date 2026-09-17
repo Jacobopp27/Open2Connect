@@ -1,8 +1,11 @@
-import requests
 import json
+import os
+
+import requests
 
 # Configuración de credenciales y URL base
-API_KEY_aitinkerers = "REMOVED_KEY"
+# La llave nunca va en el código: se lee del entorno (ver .env.example).
+API_KEY_aitinkerers = os.environ.get("AI_TINKERERS_API_KEY", "")
 BASE_URL = "https://aitinkerers.org/api/agents/v1"
 
 headers = {
@@ -73,5 +76,7 @@ def busqueda_cruzada_miembros_y_eventos(keyword_perfil: str, ciudad_filtro: str 
             print(f"    [Evento Disponible] {ev.get('title')} - {ev.get('city')} ({ev.get('starts_at')})")
 
 if __name__ == "__main__":
+    if not API_KEY_aitinkerers:
+        raise SystemExit("Define AI_TINKERERS_API_KEY en el entorno para usar este script.")
     # Ejemplo: Buscar expertos en 'agents' y cruzar con eventos futuros
     busqueda_cruzada_miembros_y_eventos(keyword_perfil="agents")
